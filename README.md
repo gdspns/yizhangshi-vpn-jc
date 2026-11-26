@@ -24,18 +24,14 @@ Xboard is a modern panel system built on Laravel 11, focusing on providing a cle
 ## 🚀 Quick Start
 
 ```bash
-git clone -b compose --depth 1 https://github.com/cedar2025/Xboard && \
-cd Xboard && \
-docker compose run -it --rm \
-    -e ENABLE_SQLITE=true \
-    -e ENABLE_REDIS=true \
-    -e ADMIN_ACCOUNT=admin@demo.com \
-    xboard php artisan xboard:install && \
-docker compose up -d
+curl -fsSL https://raw.githubusercontent.com/gdspns/yizhangshi-vpn-jc/master/install-docker.sh | sudo bash
 ```
 
 > After installation, visit: http://SERVER_IP:7001  
 > ⚠️ Make sure to save the admin credentials shown during installation
+>
+> The installer pulls `ghcr.io/gdspns/yizhangshi-vpn-jc:latest` and stores
+> persistent configuration and data in `/opt/yizhangshi-vpn-jc`.
 
 ## 📖 Documentation
 
