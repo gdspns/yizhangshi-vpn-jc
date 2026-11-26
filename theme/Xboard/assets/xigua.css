@@ -294,6 +294,78 @@ html.dark #app .n-data-table-th {
   background: #232832 !important;
 }
 
+/* Dark form controls: keep entered values, placeholders and focus visible. */
+html.dark #app .n-input,
+html.dark #app .n-input-wrapper,
+html.dark #app .n-base-selection,
+html.dark #app .n-input-number,
+html.dark #app .n-date-picker {
+  background-color: #232832 !important;
+  color: rgba(255, 255, 255, 0.92) !important;
+}
+
+html.dark #app .n-input__input-el,
+html.dark #app .n-input__textarea-el,
+html.dark #app .n-base-selection-label,
+html.dark #app .n-base-selection-input,
+html.dark #app input,
+html.dark #app textarea {
+  color: rgba(255, 255, 255, 0.92) !important;
+  caret-color: #8da8f2 !important;
+  -webkit-text-fill-color: rgba(255, 255, 255, 0.92) !important;
+}
+
+html.dark #app .n-input__placeholder,
+html.dark #app .n-base-selection-placeholder,
+html.dark #app input::placeholder,
+html.dark #app textarea::placeholder {
+  color: rgba(255, 255, 255, 0.46) !important;
+  opacity: 1 !important;
+  -webkit-text-fill-color: rgba(255, 255, 255, 0.46) !important;
+}
+
+html.dark #app .n-input__border,
+html.dark #app .n-base-selection__border {
+  border-color: rgba(255, 255, 255, 0.18) !important;
+}
+
+html.dark #app .n-input.n-input--focus .n-input__state-border,
+html.dark #app .n-base-selection.n-base-selection--active .n-base-selection__state-border {
+  border-color: #6f8ee8 !important;
+  box-shadow: 0 0 0 3px rgba(111, 142, 232, 0.2) !important;
+}
+
+html.dark #app label,
+html.dark #app .n-form-item-label {
+  color: rgba(255, 255, 255, 0.78) !important;
+}
+
+/* Profile page: prevent the wallet card from covering the following forms. */
+body[data-xg-route="/profile"] #app .cus-scroll-y {
+  scroll-padding-top: 16px;
+  padding-bottom: 44px !important;
+}
+
+body[data-xg-route="/profile"] #app .cus-scroll-y > .n-card:first-child {
+  position: relative !important;
+  z-index: 0 !important;
+  isolation: isolate;
+  overflow: hidden !important;
+}
+
+body[data-xg-route="/profile"] #app .cus-scroll-y > .n-card:first-child .n-card__content > div:first-child {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 12px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+body[data-xg-route="/profile"] #app .cus-scroll-y > .n-card:first-child .ml-5 {
+  margin-left: 0 !important;
+}
+
 @media (max-width: 767px) {
   body::before,
   body::after {
@@ -324,6 +396,16 @@ html.dark #app .n-data-table-th {
 
   #app .n-button {
     min-height: 40px;
+  }
+
+  body[data-xg-route="/profile"] #app .cus-scroll-y {
+    padding-bottom: 104px !important;
+  }
+
+  body[data-xg-route="/profile"] #app .cus-scroll-y > .n-card:first-child .text-5xl {
+    max-width: 100%;
+    font-size: 30px !important;
+    line-height: 1.2;
   }
 }
 
