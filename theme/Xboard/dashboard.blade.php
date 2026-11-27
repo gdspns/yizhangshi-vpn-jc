@@ -8,9 +8,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/theme/{{$theme}}/assets/xigua.css?v={{$version}}" />
-  <script defer src="/theme/{{$theme}}/assets/xigua.js?v={{$version}}"></script>
-  <script type="module" crossorigin src="/theme/{{$theme}}/assets/umi.js"></script>
+  <link rel="stylesheet" href="/theme/{{$theme}}/assets/xigua.css?v={{$version}}-preview3" />
+  <script defer src="/theme/{{$theme}}/assets/xigua.js?v={{$version}}-preview3"></script>
 </head>
 <style>
   .markdown-body { white-space: pre-line; }
@@ -63,6 +62,9 @@
   .vl-features { display: grid; grid-template-columns: repeat(4,1fr); gap: 18px; padding: 0; list-style: none; }
   .vl-plans { display: grid; grid-template-columns: repeat(3,1fr); gap: 18px; padding: 0; list-style: none; }
   .vl-feature, .vl-plan, .vl-step, .vl-region { padding: 26px; border: 1px solid #29362f; border-radius: 18px; background: #121916; }
+  .vl-plan { min-height: 430px; display: flex; flex-direction: column; border-color: #00a878; background: #17191d; box-shadow: 0 18px 45px rgba(0,0,0,.22); }
+  .vl-plan:nth-child(3n+2) { border-color: #ff9d00; }
+  .vl-plan:nth-child(3n) { border-color: #9b20e8; }
   .vl-feature-icon { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 12px; color: #9ce4bb; background: #193526; font-size: 22px; }
   .vl-feature h3, .vl-plan h3 { margin: 18px 0 10px; font-size: 20px; }
   .vl-feature p, .vl-plan-desc { color: #9aada2; line-height: 1.7; white-space: pre-line; }
@@ -70,6 +72,11 @@
   .vl-price { margin: 22px 0 5px; font-size: 30px; font-weight: 850; }
   .vl-price-note { min-height: 44px; color: #91a399; font-size: 14px; line-height: 1.5; }
   .vl-plan .vl-btn { width: 100%; box-sizing: border-box; }
+  .vl-plan-benefits { min-height: 150px; margin: 18px 0; padding: 0; color: #c4cbd2; list-style: none; line-height: 1.8; }
+  .vl-plan .vl-price-note { margin-top: auto; }
+  .vl-plan .vl-btn { margin-top: 16px; min-height: 54px; border-radius: 14px; }
+  .vl-plan:nth-child(3n+2) .vl-btn { background: #ff9d00; }
+  .vl-plan:nth-child(3n) .vl-btn { background: #8e17d8; color: #fff; }
   .vl-empty { grid-column: 1/-1; padding: 30px; text-align: center; color: #93a49a; }
   .vl-final { padding: 58px; border-radius: 24px; color: #06100a; text-align: center; background: #52ba7d; }
   .vl-final .vl-btn { color: #dff8e9; background: #07100c; }
@@ -158,6 +165,16 @@
   {!! $theme_config['custom_html'] !!}
   <script>
     (function () {
+      var appLoaded = false;
+      function loadUserApp() {
+        if (appLoaded) return;
+        appLoaded = true;
+        var script = document.createElement('script');
+        script.type = 'module';
+        script.crossOrigin = 'anonymous';
+        script.src = '/theme/{{$theme}}/assets/umi.js';
+        document.head.appendChild(script);
+      }
       var nativeFetch = window.fetch.bind(window);
       window.fetch = function (input, init) {
         var url = typeof input === 'string' ? input : input.url;
@@ -175,8 +192,9 @@
         if (landingRequested && location.hash && !inLanding()) history.replaceState(null, '', location.pathname + location.search);
       }
       syncView();
+      if (!landingRequested) loadUserApp();
       addEventListener('hashchange', syncView);
-      document.querySelectorAll('.vl-enter-app').forEach(function (link) { link.addEventListener('click', function () { landingRequested = false; document.body.classList.remove('vpscs-landing-mode'); }); });
+      document.querySelectorAll('.vl-enter-app').forEach(function (link) { link.addEventListener('click', function () { landingRequested = false; document.body.classList.remove('vpscs-landing-mode'); loadUserApp(); }); });
 
       var periods = [
         ['month_price', '月'], ['quarter_price', '季'], ['half_year_price', '半年'],
@@ -209,7 +227,8 @@
           var suffix = one ? '' : ' / ' + selected[1];
           var extra = one ? '一次购买，长期有效' : periods.filter(function (p) { return plan[p[0]] != null && Number(plan[p[0]]) > 0 && p[0] !== selected[0]; }).slice(0, 3).map(function (p) { return p[1] + '付 ¥' + (Number(plan[p[0]]) / 100).toFixed(2); }).join(' · ');
           var desc = String(plan.content || '').replace(/<[^>]+>/g, '').split('\n').slice(0, 3).join('\n');
-          return '<li class="vl-plan"><span class="vl-kind">' + kind + '</span><h3>' + escapeHtml(plan.name) + '</h3><p class="vl-plan-desc">' + escapeHtml(desc) + '</p><p class="vl-price">¥' + price.toFixed(2) + suffix + '</p><p class="vl-price-note">' + escapeHtml(extra) + '</p><a class="vl-btn vl-enter-app" href="#/register">购买</a></li>';
+          var benefits = desc.split('\n').filter(Boolean).map(function (line) { return '<li>✓ ' + escapeHtml(line) + '</li>'; }).join('');
+          return '<li class="vl-plan"><span class="vl-kind">' + kind + '</span><h3>' + escapeHtml(plan.name) + '</h3><p class="vl-price">¥' + price.toFixed(2) + suffix + '</p><ul class="vl-plan-benefits">' + benefits + '</ul><p class="vl-price-note">' + escapeHtml(extra) + '</p><a class="vl-btn vl-enter-app" href="#/register">订阅</a></li>';
         }).join('');
       }
       document.querySelectorAll('.vl-filter-btn').forEach(function (button) { button.addEventListener('click', function () { planFilter = button.dataset.planFilter; document.querySelectorAll('.vl-filter-btn').forEach(function (item) { item.classList.toggle('is-active', item === button); }); renderPlans(); }); });
@@ -238,15 +257,16 @@
         return match ? { Authorization: decodeURIComponent(match[1]) } : {};
       }
       function renderSubscriptionList() {
-        if (!/subscribe/i.test(location.hash) || subscriptionRenderBusy || document.getElementById('vpscs-subscription-list')) return;
-        var heading = Array.from(document.querySelectorAll('#app h1,#app h2,#app h3')).find(function (node) { return node.textContent.includes('我的订阅'); });
-        if (!heading) return;
+        if (!/dashboard/i.test(location.hash) || subscriptionRenderBusy || document.getElementById('vpscs-subscription-list')) return;
+        var card = Array.from(document.querySelectorAll('#app .n-card')).find(function (node) { return node.textContent.includes('我的订阅'); });
+        var content = card && card.querySelector('.n-card__content');
+        if (!content) return;
         subscriptionRenderBusy = true;
         nativeFetch('/api/v1/user/getSubscriptions', { headers: authHeaders() }).then(function (r) { return r.json(); }).then(function (payload) {
           var items = payload.data || [];
           var list = document.createElement('div'); list.id = 'vpscs-subscription-list'; list.className = 'vpscs-subscription-list';
           list.innerHTML = items.map(function (item) { var used = Number(item.u || 0) + Number(item.d || 0); var total = Number(item.transfer_enable || 0); var expires = item.expired_at ? new Date(Number(item.expired_at) * 1000).toLocaleDateString() : '长期有效'; return '<section class="vpscs-subscription-card"><div class="vpscs-subscription-head"><span class="vpscs-subscription-name">' + escapeHtml(item.name || '订阅') + '</span><span>到期：' + expires + '</span></div><p class="vpscs-subscription-meta">已用 ' + (used / 1073741824).toFixed(2) + ' GB / ' + (total / 1073741824).toFixed(2) + ' GB</p><div class="vpscs-subscription-url">' + escapeHtml(item.subscribe_url) + '</div><div class="vpscs-subscription-actions"><button data-renew="' + item.id + '">续费订阅</button><button data-copy="' + escapeHtml(item.subscribe_url) + '">复制订阅</button></div></section>'; }).join('');
-          heading.parentElement.appendChild(list);
+          content.appendChild(list);
           list.addEventListener('click', function (event) { var renew = event.target.closest('[data-renew]'); var copy = event.target.closest('[data-copy]'); if (renew) { sessionStorage.setItem('vpscs_renew_subscription_id', renew.dataset.renew); location.hash = '#/plan'; } if (copy) navigator.clipboard.writeText(copy.dataset.copy); });
         }).finally(function () { subscriptionRenderBusy = false; });
       }
