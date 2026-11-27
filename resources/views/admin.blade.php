@@ -6,7 +6,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{{ $title }}</title>
   <script>
-    document.documentElement.classList.add('dark', 'vpscs-admin-dark');
     window.settings = {{ Illuminate\Support\Js::from([
       'base_url' => '/',
       'title' => $title,
@@ -83,7 +82,7 @@
     <script src="/assets/admin/locales/ko-KR.js"></script>
   @endif
   <style id="vpscs-admin-dark-theme">
-    :root, html.dark {
+    html.dark {
       color-scheme: dark;
       --el-bg-color: #0d1422;
       --el-bg-color-page: #080d17;
@@ -107,47 +106,47 @@
       --el-color-primary-light-8: #282343;
       --el-color-primary-light-9: #1a1930;
     }
-    html, body, #root, .el-container, .el-main {
+    html.dark, html.dark body, html.dark #root, html.dark .el-container, html.dark .el-main {
       background: #080d17 !important;
       color: #e8edf6 !important;
     }
-    .el-aside, .el-header, .el-menu, .el-menu--popup, .el-card,
-    .el-dialog, .el-dialog__body, .el-drawer, .el-drawer__body,
-    .el-popover.el-popper, .el-dropdown__popper, .el-select__popper,
-    .el-picker-panel, .el-message-box {
+    html.dark .el-aside, html.dark .el-header, html.dark .el-menu, html.dark .el-menu--popup, html.dark .el-card,
+    html.dark .el-dialog, html.dark .el-dialog__body, html.dark .el-drawer, html.dark .el-drawer__body,
+    html.dark .el-popover.el-popper, html.dark .el-dropdown__popper, html.dark .el-select__popper,
+    html.dark .el-picker-panel, html.dark .el-message-box {
       background: #0f1828 !important;
       color: #e8edf6 !important;
       border-color: #293750 !important;
     }
-    .el-card, .el-table, .el-table tr, .el-table th.el-table__cell,
-    .el-table td.el-table__cell, .el-table__expanded-cell,
-    .el-descriptions__body, .el-descriptions__table, .el-pagination {
+    html.dark .el-card, html.dark .el-table, html.dark .el-table tr, html.dark .el-table th.el-table__cell,
+    html.dark .el-table td.el-table__cell, html.dark .el-table__expanded-cell,
+    html.dark .el-descriptions__body, html.dark .el-descriptions__table, html.dark .el-pagination {
       background: #0f1828 !important;
       color: #dbe4f2 !important;
       border-color: #293750 !important;
     }
-    .el-table th.el-table__cell,
-    .el-table--enable-row-hover .el-table__body tr:hover > td.el-table__cell,
-    .el-menu-item:hover, .el-sub-menu__title:hover {
+    html.dark .el-table th.el-table__cell,
+    html.dark .el-table--enable-row-hover .el-table__body tr:hover > td.el-table__cell,
+    html.dark .el-menu-item:hover, html.dark .el-sub-menu__title:hover {
       background: #18243a !important;
     }
-    .el-input__wrapper, .el-textarea__inner, .el-select__wrapper,
-    .el-input-number, .el-date-editor, .el-upload-dragger {
+    html.dark .el-input__wrapper, html.dark .el-textarea__inner, html.dark .el-select__wrapper,
+    html.dark .el-input-number, html.dark .el-date-editor, html.dark .el-upload-dragger {
       background: #101a2b !important;
       color: #eef2f8 !important;
       box-shadow: 0 0 0 1px #2b3a52 inset !important;
       border-color: #2b3a52 !important;
     }
-    .el-input__inner, .el-textarea__inner, .el-select__selected-item,
-    .el-form-item__label, .el-dialog__title, .el-drawer__title,
-    .el-card__header, .el-menu-item, .el-sub-menu__title,
-    h1, h2, h3, h4, h5, h6 { color: #eef2f8 !important; }
-    .el-menu-item.is-active, a { color: #9f8cff !important; }
-    .el-empty__description, .el-text, small, .text-gray-500 {
+    html.dark .el-input__inner, html.dark .el-textarea__inner, html.dark .el-select__selected-item,
+    html.dark .el-form-item__label, html.dark .el-dialog__title, html.dark .el-drawer__title,
+    html.dark .el-card__header, html.dark .el-menu-item, html.dark .el-sub-menu__title,
+    html.dark h1, html.dark h2, html.dark h3, html.dark h4, html.dark h5, html.dark h6 { color: #eef2f8 !important; }
+    html.dark .el-menu-item.is-active, html.dark a { color: #9f8cff !important; }
+    html.dark .el-empty__description, html.dark .el-text, html.dark small, html.dark .text-gray-500 {
       color: #9caac0 !important;
     }
-    .el-table::before, .el-table__inner-wrapper::before, .el-card,
-    .el-dialog, .el-drawer { border-color: #293750 !important; }
+    html.dark .el-table::before, html.dark .el-table__inner-wrapper::before, html.dark .el-card,
+    html.dark .el-dialog, html.dark .el-drawer { border-color: #293750 !important; }
   </style>
 </head>
 

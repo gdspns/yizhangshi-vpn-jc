@@ -1,0 +1,8 @@
+{
+    "name": "TronGrid",
+    "code": "trongrid",
+    "type": "payment",
+    "version": "1.0.0",
+    "description": "TRON 链上 USDT/TRX 收款与自动确认",
+    "author": "VPSCS Team"
+}
