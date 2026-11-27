@@ -172,6 +172,16 @@ body::after {
   gap: 18px !important;
 }
 
+.vpscs-subscription-list { display:grid; gap:16px; margin:18px 0; }
+.vpscs-subscription-card { padding:20px; border:1px solid var(--xg-border); border-radius:14px; background:var(--xg-card); }
+.vpscs-subscription-head { display:flex; justify-content:space-between; gap:12px; align-items:center; }
+.vpscs-subscription-name { font-size:18px; font-weight:750; }
+.vpscs-subscription-meta { margin:10px 0 14px; color:var(--xg-text-secondary); }
+.vpscs-subscription-url { padding:10px 12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; border-radius:9px; background:rgba(var(--xg-primary-rgb),.08); }
+.vpscs-subscription-actions { display:flex; flex-wrap:wrap; gap:10px; margin-top:14px; }
+.vpscs-subscription-actions button { min-height:38px; padding:0 16px; border:0; border-radius:9px; color:#fff; background:var(--xg-primary); cursor:pointer; font-weight:650; }
+:is(html.dark, body.dark) .vpscs-subscription-card { background:#1f2329; border-color:rgba(255,255,255,.14); }
+
 /* Controls */
 #app .n-button {
   min-height: 38px;
@@ -357,6 +367,28 @@ body:is([data-xg-route="/login"], [data-xg-route="/register"], [data-xg-route="/
 
 :is(html.dark, body.dark) #app .n-data-table-th {
   background: #232832 !important;
+}
+
+/* Ticket/article content must not retain light utility backgrounds in dark
+ * mode.  These utilities are emitted by the bundled client and otherwise
+ * produce white message bubbles with unreadable white text. */
+:is(html.dark, body.dark) #app .bg-white,
+:is(html.dark, body.dark) #app [class~="bg-white"] {
+  background-color: #232832 !important;
+  color: rgba(255, 255, 255, 0.92) !important;
+}
+
+:is(html.dark, body.dark) #app .markdown-body,
+:is(html.dark, body.dark) #app .markdown-body p,
+:is(html.dark, body.dark) #app .markdown-body li,
+:is(html.dark, body.dark) #app .markdown-body blockquote {
+  color: rgba(255, 255, 255, 0.86) !important;
+}
+
+:is(html.dark, body.dark) #app .markdown-body pre,
+:is(html.dark, body.dark) #app .markdown-body code {
+  color: #dce8e1 !important;
+  background-color: #121a16 !important;
 }
 
 /* Dark form controls: keep entered values, placeholders and focus visible. */

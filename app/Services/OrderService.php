@@ -63,14 +63,15 @@ class OrderService
         Plan $plan,
         string $period,
         ?string $couponCode = null,
+        ?User $subscription = null,
     ): Order {
         $userService = app(UserService::class);
         $planService = new PlanService($plan);
 
-        $planService->validatePurchase($user, $period);
+        $planService->validatePurchase($subscription ?? new User(), $period);
         HookManager::call('order.create.before', [$user, $plan, $period, $couponCode]);
 
-        return DB::transaction(function () use ($user, $plan, $period, $couponCode, $userService) {
+        return DB::transaction(function () use ($user, $plan, $period, $couponCode, $userService, $subscription) {
             $user = User::lockForUpdate()->find($user->id);
             if (!$user) {
                 throw new ApiException(__('The user does not exist'));
@@ -84,6 +85,7 @@ class OrderService
 
             $order = new Order([
                 'user_id' => $user->id,
+                'subscription_user_id' => $subscription?->id,
                 'plan_id' => $plan->id,
                 'period' => $newPeriod,
                 'trade_no' => Helper::generateOrderNo(),
@@ -97,7 +99,7 @@ class OrderService
             }
 
             $orderService->setVipDiscount($user);
-            $orderService->setOrderType($user);
+            $orderService->setOrderType($subscription);
 
             $orderService->setInvite(user: $user);
 
@@ -128,7 +130,9 @@ class OrderService
 
             HookManager::call('order.open.before', $order);
 
-            $this->user = User::lockForUpdate()->find($order->user_id);
+            $this->user = $order->subscription_user_id
+                ? User::lockForUpdate()->find($order->subscription_user_id)
+                : $this->createSubscriptionProfile($order, $plan);
 
             if ($order->surplus_credit) {
                 $this->user->balance += $order->surplus_credit;
@@ -182,11 +186,14 @@ class OrderService
     }
 
 
-    public function setOrderType(User $user)
+    public function setOrderType(?User $user)
     {
         $order = $this->order;
         if ($order->period === Plan::PERIOD_RESET_TRAFFIC) {
+            if (!$user) throw new ApiException('请选择需要重置流量的订阅');
             $order->type = Order::TYPE_RESET_TRAFFIC;
+        } else if (!$user) {
+            $order->type = Order::TYPE_NEW_PURCHASE;
         } else if ($user->plan_id !== NULL && $order->plan_id !== $user->plan_id && ($user->expired_at > time() || $user->expired_at === NULL)) {
             if (!(int) admin_setting('plan_change_enable', 1))
                 throw new ApiException('目前不允许更改订阅，请联系客服或提交工单操作');
@@ -204,6 +211,28 @@ class OrderService
         } else { // 新购
             $order->type = Order::TYPE_NEW_PURCHASE;
         }
+    }
+
+    private function createSubscriptionProfile(Order $order, Plan $plan): User
+    {
+        $owner = User::lockForUpdate()->findOrFail($order->user_id);
+        $subscription = new User();
+        $subscription->owner_user_id = $owner->id;
+        $subscription->subscription_name = $plan->name;
+        $subscription->email = 'subscription-' . $owner->id . '-' . strtolower(Helper::guid()) . '@internal.invalid';
+        $subscription->password = $owner->password;
+        $subscription->uuid = Helper::guid(true);
+        $subscription->token = Helper::guid();
+        $subscription->banned = false;
+        $subscription->is_admin = false;
+        $subscription->is_staff = false;
+        $subscription->remind_expire = false;
+        $subscription->remind_traffic = false;
+        $subscription->invite_user_id = $owner->invite_user_id;
+        $subscription->saveOrFail();
+        $order->subscription_user_id = $subscription->id;
+        $order->saveOrFail();
+        return $subscription;
     }
 
     public function setVipDiscount(User $user)

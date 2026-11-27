@@ -48,8 +48,10 @@ class PaymentService
             }
             $this->config['enable'] = $payment['enable'];
             $this->config['id'] = $payment['id'];
-            $this->config['uuid'] = $payment['uuid'];
-            $this->config['notify_domain'] = $payment['notify_domain'] ?? '';
+            // CHAR columns and legacy short UUIDs may be returned with trailing
+            // padding. Never place those spaces in an external callback URL.
+            $this->config['uuid'] = trim((string) $payment['uuid']);
+            $this->config['notify_domain'] = trim((string) ($payment['notify_domain'] ?? ''));
         }
 
         $paymentMethods = $this->getAvailablePaymentMethods();
@@ -82,7 +84,8 @@ class PaymentService
     public function pay($order)
     {
         // custom notify domain name
-        $notifyUrl = url("/api/v1/guest/payment/notify/{$this->method}/{$this->config['uuid']}");
+        $callbackUuid = trim((string) $this->config['uuid']);
+        $notifyUrl = url("/api/v1/guest/payment/notify/{$this->method}/{$callbackUuid}");
         if ($this->config['notify_domain']) {
             $parseUrl = parse_url($notifyUrl);
             $notifyUrl = $this->config['notify_domain'] . $parseUrl['path'];

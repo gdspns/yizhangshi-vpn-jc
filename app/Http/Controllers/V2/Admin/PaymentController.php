@@ -27,7 +27,8 @@ class PaymentController extends Controller
     {
         $payments = Payment::orderBy('sort', 'ASC')->get()->makeVisible('config');
         foreach ($payments as $k => $v) {
-            $notifyUrl = url("/api/v1/guest/payment/notify/{$v->payment}/{$v->uuid}");
+            $callbackUuid = trim((string) $v->uuid);
+            $notifyUrl = url("/api/v1/guest/payment/notify/{$v->payment}/{$callbackUuid}");
             if ($v->notify_domain) {
                 $parseUrl = parse_url($notifyUrl);
                 $notifyUrl = $v->notify_domain . $parseUrl['path'];

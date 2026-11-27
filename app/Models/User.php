@@ -172,6 +172,18 @@ class User extends Authenticatable
         return $this->belongsTo(self::class, 'parent_id', 'id');
     }
 
+    /** Login account which owns this isolated subscription identity. */
+    public function subscriptionOwner(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'owner_user_id');
+    }
+
+    /** Additional independently metered subscriptions owned by this account. */
+    public function subscriptions(): HasMany
+    {
+        return $this->hasMany(self::class, 'owner_user_id');
+    }
+
     /**
      * 关联流量重置记录
      */

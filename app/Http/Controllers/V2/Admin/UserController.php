@@ -199,6 +199,8 @@ class UserController extends Controller
 
         $userModel = User::query()
             ->with(['plan:id,name', 'invite_user:id,email', 'group:id,name'])
+            ->withCount('subscriptions')
+            ->whereNull('owner_user_id')
             ->select((new User())->getTable() . '.*')
             ->selectRaw('(u + d) as total_used');
 
@@ -224,6 +226,7 @@ class UserController extends Controller
         $user['balance'] = $user['balance'] / 100;
         $user['commission_balance'] = $user['commission_balance'] / 100;
         $user['subscribe_url'] = Helper::getSubscribeUrl($user['token']);
+        $user['subscription_count'] = ($user['subscriptions_count'] ?? 0) + ($user['plan_id'] ? 1 : 0);
         return HookManager::filter('admin.user.transform', $user, $model);
     }
 
@@ -234,7 +237,21 @@ class UserController extends Controller
         ], [
             'id.required' => '用户ID不能为空'
         ]);
-        $user = User::find($request->input('id'))->load('invite_user');
+        $user = User::whereNull('owner_user_id')->findOrFail($request->input('id'))
+            ->load(['invite_user', 'plan', 'subscriptions.plan']);
+        $profiles = collect([$user])->when($user->plan_id === null, fn ($items) => $items->slice(1))
+            ->concat($user->subscriptions)
+            ->map(fn (User $profile) => [
+                'id' => $profile->id,
+                'name' => $profile->subscription_name ?: optional($profile->plan)->name,
+                'plan' => $profile->plan,
+                'subscribe_url' => Helper::getSubscribeUrl(trim($profile->token)),
+                'expired_at' => $profile->expired_at,
+                'u' => $profile->u,
+                'd' => $profile->d,
+                'transfer_enable' => $profile->transfer_enable,
+            ])->values();
+        $user->setAttribute('subscription_profiles', $profiles);
         $user = HookManager::filter('admin.user.detail', $user, $request);
         return $this->success($user);
     }

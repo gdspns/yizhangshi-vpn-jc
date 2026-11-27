@@ -147,6 +147,26 @@
     }
     html.dark .el-table::before, html.dark .el-table__inner-wrapper::before, html.dark .el-card,
     html.dark .el-dialog, html.dark .el-drawer { border-color: #293750 !important; }
+    html.dark .el-tag,
+    html.dark .el-tag.el-tag--info,
+    html.dark .el-check-tag,
+    html.dark .el-statistic,
+    html.dark .el-button:not(.el-button--primary):not(.is-link) {
+      --el-tag-bg-color: #18243a;
+      --el-tag-border-color: #344662;
+      --el-tag-text-color: #dce6f5;
+      background: #18243a !important;
+      color: #dce6f5 !important;
+      border-color: #344662 !important;
+    }
+    html.dark .el-tag *, html.dark .el-statistic *,
+    html.dark .el-button:not(.el-button--primary):not(.is-link) * {
+      color: inherit !important;
+    }
+    html.dark .el-switch:not(.is-checked) .el-switch__core {
+      background: #25334a !important;
+      border-color: #3a4c68 !important;
+    }
   </style>
 </head>
 
@@ -226,12 +246,64 @@
         document.querySelectorAll('[role="dialog"]').forEach(enhancePlanDialog);
       }).observe(document.body, { childList: true, subtree: true });
     })();
+
+    (function () {
+      var nativeFetch = window.fetch.bind(window);
+      var profiles = [];
+      window.fetch = function (input, init) {
+        var url = typeof input === 'string' ? input : input.url;
+        var selectedId = sessionStorage.getItem('vpscs_admin_subscription_id');
+        var targetsSubscription = selectedId && /\/api\/v2\/admin\/(user\/(update|resetSecret|drop)|order\/|stat\/user)/i.test(url);
+        if (targetsSubscription && typeof input === 'string') {
+          try { var parsed = new URL(input, location.origin); ['id', 'user_id'].forEach(function (key) { if (parsed.searchParams.has(key)) parsed.searchParams.set(key, selectedId); }); input = parsed.pathname + parsed.search; url = input; } catch (_) {}
+        }
+        if (targetsSubscription && init && typeof init.body === 'string') {
+          try {
+            var body = JSON.parse(init.body);
+            if ('id' in body) body.id = Number(selectedId);
+            if ('user_id' in body) body.user_id = Number(selectedId);
+            if (Array.isArray(body.user_ids)) body.user_ids = [Number(selectedId)];
+            init = Object.assign({}, init, { body: JSON.stringify(body) });
+          } catch (_) {}
+        }
+        return nativeFetch(input, init).then(function (response) {
+          if (/user\/getUserInfoById/i.test(url)) response.clone().json().then(function (payload) {
+            profiles = payload.data && payload.data.subscription_profiles || [];
+            renderSubscriptionPicker();
+          }).catch(function () {});
+          return response;
+        });
+      };
+      function renderSubscriptionPicker() {
+        var dialog = Array.from(document.querySelectorAll('[role="dialog"]')).find(function (item) { return /用户|订阅/.test(item.textContent); });
+        if (!dialog || !profiles.length) return;
+        var box = dialog.querySelector('.vpscs-admin-subscriptions');
+        if (!box) { box = document.createElement('section'); box.className = 'vpscs-admin-subscriptions'; var body = dialog.querySelector('.el-dialog__body') || dialog; body.prepend(box); }
+        box.innerHTML = '<strong>订阅（共 ' + profiles.length + ' 条链接）</strong><select>' + profiles.map(function (item, index) { return '<option value="' + index + '">' + (item.name || '订阅 ' + (index + 1)) + '</option>'; }).join('') + '</select><div class="vpscs-admin-subscription-detail"></div>';
+        var select = box.querySelector('select');
+        function show() { var item = profiles[Number(select.value)] || {}; sessionStorage.setItem('vpscs_admin_subscription_id', item.id || ''); var used = (Number(item.u || 0) + Number(item.d || 0)) / 1073741824; var total = Number(item.transfer_enable || 0) / 1073741824; box.querySelector('.vpscs-admin-subscription-detail').innerHTML = '<div>当前操作目标：' + (item.name || '订阅') + '（ID ' + item.id + '）</div><div>套餐：' + (item.plan && item.plan.name || '-') + '</div><div>流量：' + used.toFixed(2) + ' / ' + total.toFixed(2) + ' GB</div><div>到期：' + (item.expired_at ? new Date(Number(item.expired_at) * 1000).toLocaleDateString() : '长期有效') + '</div><input readonly value="' + (item.subscribe_url || '') + '">'; }
+        select.addEventListener('change', show); show();
+      }
+      new MutationObserver(renderSubscriptionPicker).observe(document.body, { childList: true, subtree: true });
+      document.addEventListener('click', function (event) {
+        var action = event.target.closest('button,a,[role="menuitem"]');
+        if (!action || !/复制订阅URL/.test(action.textContent)) return;
+        var selectedId = Number(sessionStorage.getItem('vpscs_admin_subscription_id'));
+        var profile = profiles.find(function (item) { return Number(item.id) === selectedId; });
+        if (!profile || !profile.subscribe_url) return;
+        event.preventDefault(); event.stopImmediatePropagation();
+        navigator.clipboard.writeText(profile.subscribe_url);
+      }, true);
+    })();
   </script>
   <style>
     .vpscs-plan-type { margin: 0 0 16px; padding: 14px; border: 1px solid var(--el-border-color, #dcdfe6); border-radius: 8px; display: grid; gap: 8px; }
     .vpscs-plan-type label { font-weight: 600; }
     .vpscs-plan-type select { min-height: 38px; padding: 0 10px; border: 1px solid var(--el-border-color, #dcdfe6); border-radius: 6px; background: var(--el-bg-color, #fff); color: var(--el-text-color-primary, #303133); }
     .vpscs-plan-type small { color: var(--el-text-color-secondary, #909399); }
+    .vpscs-admin-subscriptions { margin:0 0 18px; padding:14px; display:grid; gap:10px; border:1px solid var(--el-border-color); border-radius:9px; }
+    .vpscs-admin-subscriptions select, .vpscs-admin-subscriptions input { min-height:38px; padding:0 10px; color:var(--el-text-color-primary); background:var(--el-bg-color); border:1px solid var(--el-border-color); border-radius:7px; }
+    .vpscs-admin-subscription-detail { display:grid; gap:6px; }
   </style>
 </body>
 

@@ -158,6 +158,16 @@
   {!! $theme_config['custom_html'] !!}
   <script>
     (function () {
+      var nativeFetch = window.fetch.bind(window);
+      window.fetch = function (input, init) {
+        var url = typeof input === 'string' ? input : input.url;
+        var target = sessionStorage.getItem('vpscs_renew_subscription_id');
+        if (target && /\/api\/v1\/user\/order\/save(?:\?|$)/.test(url) && init && typeof init.body === 'string') {
+          try { var payload = JSON.parse(init.body); payload.subscription_id = Number(target); init = Object.assign({}, init, { body: JSON.stringify(payload) }); sessionStorage.removeItem('vpscs_renew_subscription_id'); } catch (_) {}
+        }
+        return nativeFetch(input, init);
+      };
+
       function inLanding() { return !location.hash || location.hash === '#' || location.hash === '#/'; }
       function syncView() { document.body.classList.toggle('vpscs-landing-mode', inLanding()); }
       syncView();
@@ -210,8 +220,28 @@
       new MutationObserver(function () {
         document.querySelectorAll('label,button,span').forEach(function (node) {
           if (node.childElementCount === 0 && node.textContent.trim() === '按流量') node.textContent = '一次性套餐';
+          if (node.childElementCount === 0 && node.textContent.trim() === '购买订阅') {
+            node.textContent = '购买新订阅';
+            node.closest('button,a')?.addEventListener('click', function () { sessionStorage.removeItem('vpscs_renew_subscription_id'); }, { once: true });
+          }
         });
+        renderSubscriptionList();
       }).observe(document.getElementById('app'), { childList: true, subtree: true });
+
+      var subscriptionRenderBusy = false;
+      function renderSubscriptionList() {
+        if (!/subscribe/i.test(location.hash) || subscriptionRenderBusy || document.getElementById('vpscs-subscription-list')) return;
+        var heading = Array.from(document.querySelectorAll('#app h1,#app h2,#app h3')).find(function (node) { return node.textContent.includes('我的订阅'); });
+        if (!heading) return;
+        subscriptionRenderBusy = true;
+        nativeFetch('/api/v1/user/getSubscriptions').then(function (r) { return r.json(); }).then(function (payload) {
+          var items = payload.data || [];
+          var list = document.createElement('div'); list.id = 'vpscs-subscription-list'; list.className = 'vpscs-subscription-list';
+          list.innerHTML = items.map(function (item) { var used = Number(item.u || 0) + Number(item.d || 0); var total = Number(item.transfer_enable || 0); var expires = item.expired_at ? new Date(Number(item.expired_at) * 1000).toLocaleDateString() : '长期有效'; return '<section class="vpscs-subscription-card"><div class="vpscs-subscription-head"><span class="vpscs-subscription-name">' + escapeHtml(item.name || '订阅') + '</span><span>到期：' + expires + '</span></div><p class="vpscs-subscription-meta">已用 ' + (used / 1073741824).toFixed(2) + ' GB / ' + (total / 1073741824).toFixed(2) + ' GB</p><div class="vpscs-subscription-url">' + escapeHtml(item.subscribe_url) + '</div><div class="vpscs-subscription-actions"><button data-renew="' + item.id + '">续费订阅</button><button data-copy="' + escapeHtml(item.subscribe_url) + '">复制订阅</button></div></section>'; }).join('');
+          heading.parentElement.appendChild(list);
+          list.addEventListener('click', function (event) { var renew = event.target.closest('[data-renew]'); var copy = event.target.closest('[data-copy]'); if (renew) { sessionStorage.setItem('vpscs_renew_subscription_id', renew.dataset.renew); location.hash = '#/plan'; } if (copy) navigator.clipboard.writeText(copy.dataset.copy); });
+        }).finally(function () { subscriptionRenderBusy = false; });
+      }
     })();
   </script>
 </body>

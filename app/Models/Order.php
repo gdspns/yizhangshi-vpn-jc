@@ -94,6 +94,11 @@ class Order extends Model
         return $this->belongsTo(User::class, 'user_id', 'id');
     }
 
+    public function subscription(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'subscription_user_id', 'id');
+    }
+
     /**
      * 获取邀请人
      */

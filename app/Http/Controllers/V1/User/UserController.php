@@ -161,6 +161,33 @@ class UserController extends Controller
         return $this->success($user);
     }
 
+    public function getSubscriptions(Request $request)
+    {
+        $owner = User::findOrFail($request->user()->id);
+        $subscriptions = User::with('plan')
+            ->where(function ($query) use ($owner) {
+                $query->where('id', $owner->id)->whereNotNull('plan_id')
+                    ->orWhere('owner_user_id', $owner->id);
+            })
+            ->orderBy('id')
+            ->get()
+            ->map(function (User $subscription) {
+                return [
+                    'id' => $subscription->id,
+                    'name' => $subscription->subscription_name ?: optional($subscription->plan)->name,
+                    'plan' => $subscription->plan,
+                    'subscribe_url' => Helper::getSubscribeUrl(trim($subscription->token)),
+                    'expired_at' => $subscription->expired_at,
+                    'u' => $subscription->u,
+                    'd' => $subscription->d,
+                    'transfer_enable' => $subscription->transfer_enable,
+                    'device_limit' => $subscription->device_limit,
+                    'speed_limit' => $subscription->speed_limit,
+                ];
+            });
+        return $this->success($subscriptions);
+    }
+
     public function resetSecurity(Request $request)
     {
         $user = $request->user();

@@ -75,13 +75,21 @@ class OrderController extends Controller
         $plan = Plan::findOrFail($request->input('plan_id'));
         $planService = new PlanService($plan);
 
-        $planService->validatePurchase($user, $request->input('period'));
+        $subscription = null;
+        if ($request->filled('subscription_id')) {
+            $subscription = User::whereKey($request->integer('subscription_id'))
+                ->where(function ($query) use ($user) {
+                    $query->where('id', $user->id)->orWhere('owner_user_id', $user->id);
+                })->firstOrFail();
+        }
+        $planService->validatePurchase($subscription ?? new User(), $request->input('period'));
 
         $order = OrderService::createFromRequest(
             $user,
             $plan,
             $request->input('period'),
-            $request->input('coupon_code')
+            $request->input('coupon_code'),
+            $subscription
         );
 
         return $this->success($order->trade_no);
