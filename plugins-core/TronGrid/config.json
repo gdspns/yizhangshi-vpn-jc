@@ -1,6 +1,6 @@
 {
     "name": "TronGrid",
-    "code": "trongrid",
+    "code": "tron_grid",
     "type": "payment",
     "version": "1.0.0",
     "description": "TRON 链上 USDT/TRX 收款与自动确认",
