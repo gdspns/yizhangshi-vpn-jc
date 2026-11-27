@@ -24,6 +24,13 @@
       "field_type": "input"
     },
     {
+      "label": "着陆页覆盖地区",
+      "placeholder": "每行一个：地区代码|地区名称|节点数量，例如 HK|中国香港|39",
+      "field_name": "landing_regions",
+      "field_type": "textarea",
+      "default_value": "HK|中国香港|39\nJP|日本|11\nUS|美国|10\nSG|新加坡|7\nDE|德国|3\nGB|英国|3\nKR|韩国|3\nTW|中国台湾|3\nPH|菲律宾|1\nTH|泰国|1"
+    },
+    {
       "label": "自定义页脚HTML",
       "placeholder": "可以实现客服JS代码的加入等",
       "field_name": "custom_html",

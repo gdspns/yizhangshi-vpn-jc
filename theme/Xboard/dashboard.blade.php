@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="zh-CN" class="dark">
 
 <head>
   <meta charset="UTF-8" />
@@ -26,59 +26,74 @@
   }
   .n-button.n-button--primary-type .n-button__content { color: #fff !important; }
   .n-button.n-button--primary-type:hover { background: #6d28d9 !important; }
-  #vpscs-landing { display: none; min-height: 100vh; color: #15151a; background: #fff; font-family: Inter, system-ui, sans-serif; }
+  #vpscs-landing { display: none; min-height: 100vh; color: #f2f5f2; background: #0b100e; font-family: Inter, system-ui, sans-serif; color-scheme: dark; }
   body.vpscs-landing-mode #vpscs-landing { display: block; }
   body.vpscs-landing-mode #app { display: none; }
   .vl-wrap { width: min(1120px, calc(100% - 40px)); margin: auto; }
-  .vl-top { position: sticky; top: 0; z-index: 20; border-bottom: 1px solid #ececf2; background: rgba(255,255,255,.9); backdrop-filter: blur(14px); }
+  .vl-top { position: sticky; top: 0; z-index: 20; border-bottom: 1px solid #26322c; background: rgba(11,16,14,.9); backdrop-filter: blur(14px); }
   .vl-top-in { height: 68px; display: flex; align-items: center; justify-content: space-between; }
-  .vl-brand { display: flex; align-items: center; gap: 10px; color: #17171c; font-size: 20px; font-weight: 800; text-decoration: none; }
-  .vl-mark { width: 28px; height: 28px; border: 7px solid #202028; border-right-color: #7c3aed; border-radius: 50%; transform: rotate(-20deg); }
+  .vl-brand { display: flex; align-items: center; gap: 10px; color: #f4f7f4; font-size: 20px; font-weight: 800; text-decoration: none; }
+  .vl-mark { width: 28px; height: 28px; border: 7px solid #d9f8e5; border-right-color: #48b77a; border-radius: 50%; transform: rotate(-20deg); }
   .vl-actions, .vl-cta { display: flex; gap: 12px; align-items: center; }
-  .vl-link { color: #33333b; text-decoration: none; font-weight: 600; }
-  .vl-btn { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 22px; border-radius: 10px; color: #fff; background: #17171c; text-decoration: none; font-weight: 700; transition: transform .2s, background .2s; }
-  .vl-btn:hover { transform: translateY(-1px); background: #7c3aed; }
-  .vl-btn-soft { color: #27272f; background: #f0eff8; }
-  .vl-hero { padding: 92px 0 78px; background: radial-gradient(circle at 75% 20%, #eee8ff 0, transparent 35%), linear-gradient(180deg,#fff,#faf9ff); }
+  .vl-link { color: #d9e7df; text-decoration: none; font-weight: 600; }
+  .vl-btn { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 22px; border-radius: 10px; color: #06100a; background: #4fbd80; text-decoration: none; font-weight: 800; transition: transform .2s, background .2s; }
+  .vl-btn:hover { transform: translateY(-1px); background: #69d297; }
+  .vl-btn-soft { color: #e5f4eb; background: #17231d; border: 1px solid #31433a; }
+  .vl-hero { padding: 92px 0 78px; background: radial-gradient(circle at 75% 20%, #183526 0, transparent 35%), #0b100e; }
   .vl-hero-in { display: grid; grid-template-columns: 1.1fr .9fr; gap: 72px; align-items: center; }
-  .vl-eyebrow { display: inline-flex; gap: 8px; align-items: center; padding: 8px 12px; border-radius: 999px; color: #6d28d9; background: #f1eafe; font-weight: 700; }
-  .vl-dot { width: 8px; height: 8px; border-radius: 50%; background: #7c3aed; }
+  .vl-eyebrow { display: inline-flex; gap: 8px; align-items: center; padding: 8px 12px; border-radius: 999px; color: #9ce4bb; background: #173426; font-weight: 700; }
+  .vl-dot { width: 8px; height: 8px; border-radius: 50%; background: #4fbd80; }
   .vl-title { margin: 22px 0 18px; font-size: clamp(42px, 7vw, 76px); line-height: 1.02; letter-spacing: -.05em; }
-  .vl-lead { max-width: 620px; color: #646470; font-size: 18px; line-height: 1.8; }
+  .vl-lead { max-width: 620px; color: #a8b9af; font-size: 18px; line-height: 1.8; }
   .vl-cta { margin-top: 30px; }
-  .vl-platforms { margin-top: 18px; color: #858590; }
-  .vl-phone { width: min(330px, 100%); margin: auto; padding: 18px; border: 10px solid #18181d; border-radius: 38px; background: #f7f6fb; box-shadow: 0 30px 80px rgba(45,31,90,.22); }
+  .vl-platforms { margin-top: 18px; color: #82988c; }
+  .vl-phone { width: min(330px, 100%); margin: auto; padding: 18px; border: 10px solid #243128; border-radius: 38px; background: #121a16; box-shadow: 0 30px 80px rgba(0,0,0,.38); }
   .vl-phone-top { display: flex; gap: 8px; align-items: center; font-weight: 800; }
-  .vl-mini-card { margin-top: 34px; padding: 22px; border-radius: 20px; color: #fff; background: linear-gradient(145deg,#17171d,#443080); }
-  .vl-mini-label { color: #c9c0e8; font-size: 13px; }
+  .vl-mini-card { margin-top: 34px; padding: 22px; border-radius: 20px; color: #fff; background: linear-gradient(145deg,#142018,#245b3b); }
+  .vl-mini-label { color: #a9d9bd; font-size: 13px; }
   .vl-mini-plan { min-height: 48px; font-weight: 750; }
   .vl-bar { height: 8px; border-radius: 20px; background: rgba(255,255,255,.2); overflow: hidden; }
-  .vl-bar span { display: block; width: 36%; height: 100%; background: #a78bfa; }
-  .vl-mini-button { margin-top: 22px; padding: 11px; border-radius: 10px; text-align: center; background: #7c3aed; }
+  .vl-bar span { display: block; width: 36%; height: 100%; background: #65cf91; }
+  .vl-mini-button { margin-top: 22px; padding: 11px; border-radius: 10px; color: #06100a; text-align: center; background: #4fbd80; }
   .vl-section { padding: 82px 0; }
-  .vl-soft { background: #f7f7fa; }
+  .vl-soft { background: #141c18; }
   .vl-center { text-align: center; }
   .vl-h2 { margin: 0 0 14px; font-size: clamp(30px,4vw,44px); letter-spacing: -.035em; }
-  .vl-sub { margin: 0 auto 38px; max-width: 660px; color: #73737f; font-size: 17px; line-height: 1.7; }
-  .vl-features, .vl-plans { display: grid; grid-template-columns: repeat(3,1fr); gap: 18px; padding: 0; list-style: none; }
-  .vl-feature, .vl-plan { padding: 26px; border: 1px solid #e6e5ec; border-radius: 18px; background: #fff; }
-  .vl-feature-icon { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 12px; color: #6d28d9; background: #f0eafe; font-size: 22px; }
+  .vl-sub { margin: 0 auto 38px; max-width: 660px; color: #9aada2; font-size: 17px; line-height: 1.7; }
+  .vl-features { display: grid; grid-template-columns: repeat(4,1fr); gap: 18px; padding: 0; list-style: none; }
+  .vl-plans { display: grid; grid-template-columns: repeat(3,1fr); gap: 18px; padding: 0; list-style: none; }
+  .vl-feature, .vl-plan, .vl-step, .vl-region { padding: 26px; border: 1px solid #29362f; border-radius: 18px; background: #121916; }
+  .vl-feature-icon { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 12px; color: #9ce4bb; background: #193526; font-size: 22px; }
   .vl-feature h3, .vl-plan h3 { margin: 18px 0 10px; font-size: 20px; }
-  .vl-feature p, .vl-plan-desc { color: #73737f; line-height: 1.7; white-space: pre-line; }
-  .vl-kind { display: inline-flex; padding: 5px 9px; border-radius: 999px; color: #6d28d9; background: #f0eafe; font-size: 13px; font-weight: 700; }
+  .vl-feature p, .vl-plan-desc { color: #9aada2; line-height: 1.7; white-space: pre-line; }
+  .vl-kind { display: inline-flex; padding: 5px 9px; border-radius: 999px; color: #9ce4bb; background: #193526; font-size: 13px; font-weight: 700; }
   .vl-price { margin: 22px 0 5px; font-size: 30px; font-weight: 850; }
-  .vl-price-note { min-height: 44px; color: #777784; font-size: 14px; line-height: 1.5; }
+  .vl-price-note { min-height: 44px; color: #91a399; font-size: 14px; line-height: 1.5; }
   .vl-plan .vl-btn { width: 100%; box-sizing: border-box; }
-  .vl-empty { grid-column: 1/-1; padding: 30px; text-align: center; color: #777; }
-  .vl-final { padding: 58px; border-radius: 24px; color: #fff; text-align: center; background: linear-gradient(135deg,#17171d,#4c2a83); }
-  .vl-final .vl-btn { color: #17171d; background: #fff; }
-  .vl-foot { padding: 30px 0; border-top: 1px solid #ececf2; color: #777; }
+  .vl-empty { grid-column: 1/-1; padding: 30px; text-align: center; color: #93a49a; }
+  .vl-final { padding: 58px; border-radius: 24px; color: #06100a; text-align: center; background: #52ba7d; }
+  .vl-final .vl-btn { color: #dff8e9; background: #07100c; }
+  .vl-foot { padding: 30px 0; border-top: 1px solid #26322c; color: #82958a; }
   .vl-foot-in { display: flex; justify-content: space-between; }
+  .vl-steps { display: grid; grid-template-columns: repeat(3,1fr); gap: 18px; padding: 0; list-style: none; }
+  .vl-step-n { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 13px; color: #07100b; background: #4fbd80; font-weight: 900; }
+  .vl-step h3 { margin: 18px 0 8px; }
+  .vl-step p { margin: 0; color: #9aada2; line-height: 1.7; }
+  .vl-regions-wrap { display: grid; grid-template-columns: .75fr 1.25fr; gap: 70px; align-items: center; }
+  .vl-regions { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; padding: 0; list-style: none; }
+  .vl-region { padding: 16px; display: grid; grid-template-columns: 48px 1fr; gap: 4px 12px; }
+  .vl-cc { grid-row: 1/3; display: grid; place-items: center; border-radius: 12px; color: #93e1b3; background: #193526; font-weight: 900; }
+  .vl-region-name { font-weight: 800; }
+  .vl-region-count { color: #91a399; font-size: 14px; }
+  .vl-plan-filter { width: max-content; max-width: 100%; margin: 0 auto 32px; padding: 6px; display: flex; gap: 6px; border: 1px solid #3a2b35; border-radius: 999px; background: #1b1118; }
+  .vl-filter-btn { min-height: 42px; padding: 0 22px; border: 0; border-radius: 999px; color: #d7cbd3; background: transparent; cursor: pointer; font-size: 16px; }
+  .vl-filter-btn.is-active { color: #fff; background: #e64e91; box-shadow: 0 8px 24px rgba(230,78,145,.3); }
   @media (max-width: 820px) {
     .vl-hero-in { grid-template-columns: 1fr; text-align: center; }
     .vl-lead { margin-inline: auto; }
     .vl-cta { justify-content: center; }
-    .vl-features, .vl-plans { grid-template-columns: 1fr; }
+    .vl-features, .vl-plans, .vl-steps, .vl-regions { grid-template-columns: 1fr; }
+    .vl-regions-wrap { grid-template-columns: 1fr; gap: 28px; }
     .vl-phone { display: none; }
     .vl-hero { padding: 64px 0; }
     .vl-section { padding: 58px 0; }
@@ -102,8 +117,15 @@
         <li class="vl-feature"><span class="vl-feature-icon">⚡</span><h3>高速稳定</h3><p>多线路智能调度，满足日常浏览、视频与工作需求。</p></li>
         <li class="vl-feature"><span class="vl-feature-icon">⌁</span><h3>一键添加</h3><p>复制订阅链接，在客户端添加一次，后续打开即可连接。</p></li>
         <li class="vl-feature"><span class="vl-feature-icon">▣</span><h3>全平台通用</h3><p>支持手机和电脑，一个账号管理套餐、流量与设备。</p></li>
+        <li class="vl-feature"><span class="vl-feature-icon">▢</span><h3>加密传输</h3><p>连接过程加密，在公共网络环境下使用更加安心。</p></li>
       </ul></div></section>
-      <section class="vl-section vl-soft" id="plans"><div class="vl-wrap"><h2 class="vl-h2 vl-center">套餐与价格</h2><p class="vl-sub vl-center">以下内容实时读取后台已上架商品，修改套餐后首页自动同步。</p><ul id="vl-plan-list" class="vl-plans"><li class="vl-empty">正在加载套餐…</li></ul></div></section>
+      <section class="vl-section vl-soft"><div class="vl-wrap"><h2 class="vl-h2 vl-center">三步开始使用</h2><p class="vl-sub vl-center">从注册到连接，只需要简单三步。</p><ol class="vl-steps">
+        <li class="vl-step"><span class="vl-step-n">1</span><h3>注册账号</h3><p>创建账号并进入用户中心。</p></li>
+        <li class="vl-step"><span class="vl-step-n">2</span><h3>选择套餐</h3><p>按时间或一次性流量，选择适合自己的套餐。</p></li>
+        <li class="vl-step"><span class="vl-step-n">3</span><h3>添加到 App</h3><p>复制订阅链接并添加到客户端即可使用。</p></li>
+      </ol></div></section>
+      <section class="vl-section"><div class="vl-wrap vl-regions-wrap"><div><h2 id="vl-region-title" class="vl-h2">覆盖多个地区</h2><p class="vl-sub" style="margin:0">节点按地区分布，后台可以随时增加、修改或删除展示地区。</p></div><ul id="vl-region-list" class="vl-regions"></ul></div></section>
+      <section class="vl-section vl-soft" id="plans"><div class="vl-wrap"><h2 class="vl-h2 vl-center">套餐与价格</h2><p class="vl-sub vl-center">以下内容实时读取后台已上架商品，修改套餐后首页自动同步。</p><div class="vl-plan-filter" role="group" aria-label="套餐类型"><button class="vl-filter-btn is-active" data-plan-filter="all">全部</button><button class="vl-filter-btn" data-plan-filter="periodic">周期性</button><button class="vl-filter-btn" data-plan-filter="onetime">一次性</button></div><ul id="vl-plan-list" class="vl-plans"><li class="vl-empty">正在加载套餐…</li></ul></div></section>
       <section class="vl-section"><div class="vl-wrap"><div class="vl-final"><h2 class="vl-h2">现在开始</h2><p>注册账号、选择套餐，几分钟即可完成配置。</p><p class="vl-cta" style="justify-content:center"><a class="vl-btn vl-enter-app" href="#/register">立即注册</a><a class="vl-link vl-enter-app" style="color:#fff" href="#/login">已有账号，去登录</a></p></div></div></section>
     </main>
     <footer class="vl-foot"><div class="vl-wrap vl-foot-in"><span>© {{ $title }}</span><span><a class="vl-link vl-enter-app" href="#/login">登录</a> · <a class="vl-link vl-enter-app" href="#/register">注册</a></span></div></footer>
@@ -146,10 +168,25 @@
         ['month_price', '月'], ['quarter_price', '季'], ['half_year_price', '半年'],
         ['year_price', '年'], ['two_year_price', '两年'], ['three_year_price', '三年']
       ];
-      fetch('/api/v1/guest/plan/fetch').then(function (r) { return r.json(); }).then(function (payload) {
-        var plans = payload.data || [];
+      var landingPlans = [];
+      var planFilter = 'all';
+      var regionSource = @json($theme_config['landing_regions'] ?? '');
+      var regions = String(regionSource || '').split(/\r?\n/).map(function (line) {
+        var parts = line.split('|').map(function (part) { return part.trim(); });
+        return { code: parts[0] || '', name: parts[1] || '', count: parts[2] || '' };
+      }).filter(function (region) { return region.code && region.name; });
+      document.getElementById('vl-region-title').textContent = '覆盖 ' + regions.length + ' 个地区';
+      document.getElementById('vl-region-list').innerHTML = regions.map(function (region) {
+        return '<li class="vl-region"><span class="vl-cc">' + escapeHtml(region.code) + '</span><span class="vl-region-name">' + escapeHtml(region.name) + '</span><span class="vl-region-count">' + escapeHtml(region.count ? region.count + ' 个节点' : '已覆盖') + '</span></li>';
+      }).join('');
+
+      function renderPlans() {
         var list = document.getElementById('vl-plan-list');
-        if (!plans.length) { list.innerHTML = '<li class="vl-empty">暂无在售套餐</li>'; return; }
+        var plans = landingPlans.filter(function (plan) {
+          var one = plan.onetime_price != null && Number(plan.onetime_price) > 0;
+          return planFilter === 'all' || (planFilter === 'onetime' ? one : !one);
+        });
+        if (!plans.length) { list.innerHTML = '<li class="vl-empty">该分类暂无在售套餐</li>'; return; }
         list.innerHTML = plans.map(function (plan) {
           var one = plan.onetime_price != null && Number(plan.onetime_price) > 0;
           var selected = one ? ['onetime_price', '一次性'] : periods.find(function (p) { return plan[p[0]] != null && Number(plan[p[0]]) > 0; });
@@ -160,6 +197,11 @@
           var desc = String(plan.content || '').replace(/<[^>]+>/g, '').split('\n').slice(0, 3).join('\n');
           return '<li class="vl-plan"><span class="vl-kind">' + kind + '</span><h3>' + escapeHtml(plan.name) + '</h3><p class="vl-plan-desc">' + escapeHtml(desc) + '</p><p class="vl-price">¥' + price.toFixed(2) + suffix + '</p><p class="vl-price-note">' + escapeHtml(extra) + '</p><a class="vl-btn vl-enter-app" href="#/register">购买</a></li>';
         }).join('');
+      }
+      document.querySelectorAll('.vl-filter-btn').forEach(function (button) { button.addEventListener('click', function () { planFilter = button.dataset.planFilter; document.querySelectorAll('.vl-filter-btn').forEach(function (item) { item.classList.toggle('is-active', item === button); }); renderPlans(); }); });
+      fetch('/api/v1/guest/plan/fetch').then(function (r) { return r.json(); }).then(function (payload) {
+        landingPlans = payload.data || [];
+        renderPlans();
       }).catch(function () { document.getElementById('vl-plan-list').innerHTML = '<li class="vl-empty">套餐加载失败，请稍后刷新</li>'; });
 
       function escapeHtml(value) { var div = document.createElement('div'); div.textContent = value; return div.innerHTML; }

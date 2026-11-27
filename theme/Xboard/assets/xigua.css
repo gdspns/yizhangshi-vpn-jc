@@ -272,6 +272,73 @@ body::after {
   -webkit-backdrop-filter: blur(18px);
 }
 
+/* Authentication routes use one coherent dark surface.  Keep this route based
+ * so ordinary light-mode dashboard cards are not affected. */
+body:is([data-xg-route="/login"], [data-xg-route="/register"], [data-xg-route="/forgetpassword"]) {
+  color-scheme: dark;
+  background: #0b100e !important;
+}
+
+body:is([data-xg-route="/login"], [data-xg-route="/register"], [data-xg-route="/forgetpassword"]) #app {
+  min-height: 100vh;
+  color: #edf5f0;
+  background:
+    radial-gradient(circle at 50% 12%, rgba(42, 104, 70, 0.24), transparent 34%),
+    #0b100e !important;
+}
+
+body:is([data-xg-route="/login"], [data-xg-route="/register"], [data-xg-route="/forgetpassword"]) #app .max-w-md {
+  color: #edf5f0 !important;
+  background: rgba(18, 25, 22, 0.96) !important;
+  border-color: #2a3931 !important;
+  box-shadow: 0 28px 76px rgba(0, 0, 0, 0.46) !important;
+}
+
+body:is([data-xg-route="/login"], [data-xg-route="/register"], [data-xg-route="/forgetpassword"]) #app .n-input,
+body:is([data-xg-route="/login"], [data-xg-route="/register"], [data-xg-route="/forgetpassword"]) #app .n-input-wrapper,
+body:is([data-xg-route="/login"], [data-xg-route="/register"], [data-xg-route="/forgetpassword"]) #app .n-base-selection {
+  --n-color: #0f1713 !important;
+  --n-color-focus: #111c16 !important;
+  --n-text-color: #edf5f0 !important;
+  --n-placeholder-color: #74877c !important;
+  --n-border: 1px solid #34463c !important;
+  --n-border-hover: 1px solid #4fbd80 !important;
+  --n-border-focus: 1px solid #4fbd80 !important;
+  --n-box-shadow-focus: 0 0 0 3px rgba(79, 189, 128, 0.18) !important;
+  color: #edf5f0 !important;
+  background: #0f1713 !important;
+}
+
+body:is([data-xg-route="/login"], [data-xg-route="/register"], [data-xg-route="/forgetpassword"]) #app input,
+body:is([data-xg-route="/login"], [data-xg-route="/register"], [data-xg-route="/forgetpassword"]) #app textarea {
+  color: #edf5f0 !important;
+  caret-color: #70d79d !important;
+  -webkit-text-fill-color: #edf5f0 !important;
+}
+
+body:is([data-xg-route="/login"], [data-xg-route="/register"], [data-xg-route="/forgetpassword"]) #app input::placeholder,
+body:is([data-xg-route="/login"], [data-xg-route="/register"], [data-xg-route="/forgetpassword"]) #app textarea::placeholder {
+  color: #74877c !important;
+  opacity: 1 !important;
+  -webkit-text-fill-color: #74877c !important;
+}
+
+body:is([data-xg-route="/login"], [data-xg-route="/register"], [data-xg-route="/forgetpassword"]) #app input:-webkit-autofill,
+body:is([data-xg-route="/login"], [data-xg-route="/register"], [data-xg-route="/forgetpassword"]) #app input:-webkit-autofill:hover,
+body:is([data-xg-route="/login"], [data-xg-route="/register"], [data-xg-route="/forgetpassword"]) #app input:-webkit-autofill:focus {
+  border-color: #34463c !important;
+  -webkit-text-fill-color: #edf5f0 !important;
+  -webkit-box-shadow: 0 0 0 1000px #0f1713 inset !important;
+  box-shadow: 0 0 0 1000px #0f1713 inset !important;
+  caret-color: #70d79d !important;
+  transition: background-color 9999s ease-out 0s;
+}
+
+body:is([data-xg-route="/login"], [data-xg-route="/register"], [data-xg-route="/forgetpassword"]) #app .n-form-item-label,
+body:is([data-xg-route="/login"], [data-xg-route="/register"], [data-xg-route="/forgetpassword"]) #app label {
+  color: #c8d8cf !important;
+}
+
 /* Dark mode remains readable while retaining the same visual language. */
 :is(html.dark, body.dark) {
   --xg-background: #171a1d;

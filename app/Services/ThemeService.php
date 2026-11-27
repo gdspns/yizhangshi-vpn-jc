@@ -286,7 +286,11 @@ class ThemeService
             $this->initConfig($theme);
             $config = admin_setting(self::SETTING_PREFIX . $theme);
         }
-        return $config;
+        $schema = $this->readConfigFile($theme);
+        $defaults = collect($schema['configs'] ?? [])
+            ->mapWithKeys(fn($col) => [$col['field_name'] => $col['default_value'] ?? ''])
+            ->toArray();
+        return array_merge($defaults, is_array($config) ? $config : []);
     }
 
     /**
