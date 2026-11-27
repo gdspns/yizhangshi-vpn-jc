@@ -1,11 +1,19 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{{ $title }}</title>
   <script>
+    // The upstream admin bundle defaults to light mode.  Migrate existing
+    // browsers once, then keep the administrator's later manual choice.
+    try {
+      if (!localStorage.getItem('vpscs-dark-default-v2')) {
+        localStorage.setItem('vite-ui-theme', 'dark');
+        localStorage.setItem('vpscs-dark-default-v2', '1');
+      }
+    } catch (_) {}
     window.settings = {{ Illuminate\Support\Js::from([
       'base_url' => '/',
       'title' => $title,
@@ -250,6 +258,7 @@
     (function () {
       var nativeFetch = window.fetch.bind(window);
       var profiles = [];
+      var adminUsers = [];
       window.fetch = function (input, init) {
         var url = typeof input === 'string' ? input : input.url;
         var selectedId = sessionStorage.getItem('vpscs_admin_subscription_id');
@@ -274,9 +283,51 @@
           return response;
         });
       };
+      // The current React admin uses Axios/XMLHttpRequest, so mirror the same
+      // capture and selected-subscription routing for XHR requests.
+      var nativeOpen = XMLHttpRequest.prototype.open;
+      var nativeSend = XMLHttpRequest.prototype.send;
+      XMLHttpRequest.prototype.open = function (method, url) {
+        var selectedId = sessionStorage.getItem('vpscs_admin_subscription_id');
+        var nextUrl = String(url);
+        if (selectedId && /\/(user\/(update|resetSecret|destroy)|order\/|stat\/getStatUser)/i.test(nextUrl)) {
+          try {
+            var parsed = new URL(nextUrl, location.origin);
+            ['id', 'user_id'].forEach(function (key) { if (parsed.searchParams.has(key)) parsed.searchParams.set(key, selectedId); });
+            nextUrl = parsed.href;
+          } catch (_) {}
+        }
+        this.__vpscsUrl = nextUrl;
+        this.addEventListener('load', function () {
+          if (!/\/user\/fetch/i.test(this.__vpscsUrl || '')) return;
+          try {
+            var payload = JSON.parse(this.responseText);
+            adminUsers = Array.isArray(payload.data) ? payload.data : (payload.data && payload.data.data || []);
+            renderSubscriptionPicker();
+          } catch (_) {}
+        });
+        return nativeOpen.apply(this, [method, nextUrl].concat(Array.prototype.slice.call(arguments, 2)));
+      };
+      XMLHttpRequest.prototype.send = function (body) {
+        var selectedId = sessionStorage.getItem('vpscs_admin_subscription_id');
+        if (selectedId && /\/(user\/(update|resetSecret|destroy)|order\/|stat\/getStatUser)/i.test(this.__vpscsUrl || '') && typeof body === 'string') {
+          try {
+            var payload = JSON.parse(body);
+            if ('id' in payload) payload.id = Number(selectedId);
+            if ('user_id' in payload) payload.user_id = Number(selectedId);
+            if (Array.isArray(payload.user_ids)) payload.user_ids = [Number(selectedId)];
+            body = JSON.stringify(payload);
+          } catch (_) {}
+        }
+        return nativeSend.call(this, body);
+      };
       function renderSubscriptionPicker() {
         var dialog = Array.from(document.querySelectorAll('[role="dialog"]')).find(function (item) { return /用户|订阅/.test(item.textContent); });
-        if (!dialog || !profiles.length) return;
+        if (!dialog) return;
+        var emailInput = Array.from(dialog.querySelectorAll('input')).find(function (input) { return /@/.test(input.value || ''); });
+        var activeUser = emailInput && adminUsers.find(function (item) { return item.email === emailInput.value; });
+        if (activeUser && Array.isArray(activeUser.subscription_profiles)) profiles = activeUser.subscription_profiles;
+        if (!profiles.length) return;
         var box = dialog.querySelector('.vpscs-admin-subscriptions');
         if (!box) { box = document.createElement('section'); box.className = 'vpscs-admin-subscriptions'; var body = dialog.querySelector('.el-dialog__body') || dialog; body.prepend(box); }
         box.innerHTML = '<strong>订阅（共 ' + profiles.length + ' 条链接）</strong><select>' + profiles.map(function (item, index) { return '<option value="' + index + '">' + (item.name || '订阅 ' + (index + 1)) + '</option>'; }).join('') + '</select><div class="vpscs-admin-subscription-detail"></div>';
@@ -304,6 +355,14 @@
     .vpscs-admin-subscriptions { margin:0 0 18px; padding:14px; display:grid; gap:10px; border:1px solid var(--el-border-color); border-radius:9px; }
     .vpscs-admin-subscriptions select, .vpscs-admin-subscriptions input { min-height:38px; padding:0 10px; color:var(--el-text-color-primary); background:var(--el-bg-color); border:1px solid var(--el-border-color); border-radius:7px; }
     .vpscs-admin-subscription-detail { display:grid; gap:6px; }
+    html.dark #root .bg-white, html.dark #root [class~="bg-white"],
+    html.dark #root .bg-gray-50, html.dark #root [class~="bg-gray-50"],
+    html.dark #root .bg-green-50, html.dark #root [class~="bg-green-50"] {
+      background-color: hsl(var(--secondary)) !important;
+      color: hsl(var(--secondary-foreground)) !important;
+    }
+    html.dark #root .text-green-700, html.dark #root .text-gray-700,
+    html.dark #root .text-gray-900 { color: hsl(var(--foreground)) !important; }
   </style>
 </body>
 

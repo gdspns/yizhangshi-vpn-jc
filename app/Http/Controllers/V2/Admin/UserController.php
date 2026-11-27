@@ -198,7 +198,7 @@ class UserController extends Controller
         $pageSize = $request->input('pageSize', 10);
 
         $userModel = User::query()
-            ->with(['plan:id,name', 'invite_user:id,email', 'group:id,name'])
+            ->with(['plan:id,name', 'invite_user:id,email', 'group:id,name', 'subscriptions.plan:id,name'])
             ->withCount('subscriptions')
             ->whereNull('owner_user_id')
             ->select((new User())->getTable() . '.*')
@@ -227,6 +227,20 @@ class UserController extends Controller
         $user['commission_balance'] = $user['commission_balance'] / 100;
         $user['subscribe_url'] = Helper::getSubscribeUrl($user['token']);
         $user['subscription_count'] = ($user['subscriptions_count'] ?? 0) + ($user['plan_id'] ? 1 : 0);
+        $profiles = collect([$model])->when($model->plan_id === null, fn ($items) => $items->slice(1))
+            ->concat($model->subscriptions)
+            ->map(fn (User $profile) => [
+                'id' => $profile->id,
+                'name' => $profile->subscription_name ?: optional($profile->plan)->name,
+                'plan' => $profile->plan,
+                'subscribe_url' => Helper::getSubscribeUrl(trim($profile->token)),
+                'expired_at' => $profile->expired_at,
+                'u' => $profile->u,
+                'd' => $profile->d,
+                'transfer_enable' => $profile->transfer_enable,
+            ])->values();
+        unset($user['subscriptions']);
+        $user['subscription_profiles'] = $profiles;
         return HookManager::filter('admin.user.transform', $user, $model);
     }
 
