@@ -18,9 +18,14 @@
   .n-button.n-button--primary-type {
     opacity: 1 !important;
     filter: none !important;
+    color: #fff !important;
+    background: #7c3aed !important;
+    border-color: #7c3aed !important;
     font-weight: 700 !important;
     box-shadow: 0 8px 18px rgba(124, 92, 255, .28) !important;
   }
+  .n-button.n-button--primary-type .n-button__content { color: #fff !important; }
+  .n-button.n-button--primary-type:hover { background: #6d28d9 !important; }
 </style>
 
 <body>
