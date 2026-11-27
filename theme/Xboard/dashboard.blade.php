@@ -169,10 +169,14 @@
       };
 
       function inLanding() { return !location.hash || location.hash === '#' || location.hash === '#/'; }
-      function syncView() { document.body.classList.toggle('vpscs-landing-mode', inLanding()); }
+      var landingRequested = inLanding();
+      function syncView() {
+        document.body.classList.toggle('vpscs-landing-mode', landingRequested || inLanding());
+        if (landingRequested && location.hash && !inLanding()) history.replaceState(null, '', location.pathname + location.search);
+      }
       syncView();
       addEventListener('hashchange', syncView);
-      document.querySelectorAll('.vl-enter-app').forEach(function (link) { link.addEventListener('click', function () { document.body.classList.remove('vpscs-landing-mode'); }); });
+      document.querySelectorAll('.vl-enter-app').forEach(function (link) { link.addEventListener('click', function () { landingRequested = false; document.body.classList.remove('vpscs-landing-mode'); }); });
 
       var periods = [
         ['month_price', '月'], ['quarter_price', '季'], ['half_year_price', '半年'],
@@ -229,12 +233,16 @@
       }).observe(document.getElementById('app'), { childList: true, subtree: true });
 
       var subscriptionRenderBusy = false;
+      function authHeaders() {
+        var match = document.cookie.match(/(?:^|;\s*)access_token=([^;]+)/);
+        return match ? { Authorization: decodeURIComponent(match[1]) } : {};
+      }
       function renderSubscriptionList() {
         if (!/subscribe/i.test(location.hash) || subscriptionRenderBusy || document.getElementById('vpscs-subscription-list')) return;
         var heading = Array.from(document.querySelectorAll('#app h1,#app h2,#app h3')).find(function (node) { return node.textContent.includes('我的订阅'); });
         if (!heading) return;
         subscriptionRenderBusy = true;
-        nativeFetch('/api/v1/user/getSubscriptions').then(function (r) { return r.json(); }).then(function (payload) {
+        nativeFetch('/api/v1/user/getSubscriptions', { headers: authHeaders() }).then(function (r) { return r.json(); }).then(function (payload) {
           var items = payload.data || [];
           var list = document.createElement('div'); list.id = 'vpscs-subscription-list'; list.className = 'vpscs-subscription-list';
           list.innerHTML = items.map(function (item) { var used = Number(item.u || 0) + Number(item.d || 0); var total = Number(item.transfer_enable || 0); var expires = item.expired_at ? new Date(Number(item.expired_at) * 1000).toLocaleDateString() : '长期有效'; return '<section class="vpscs-subscription-card"><div class="vpscs-subscription-head"><span class="vpscs-subscription-name">' + escapeHtml(item.name || '订阅') + '</span><span>到期：' + expires + '</span></div><p class="vpscs-subscription-meta">已用 ' + (used / 1073741824).toFixed(2) + ' GB / ' + (total / 1073741824).toFixed(2) + ' GB</p><div class="vpscs-subscription-url">' + escapeHtml(item.subscribe_url) + '</div><div class="vpscs-subscription-actions"><button data-renew="' + item.id + '">续费订阅</button><button data-copy="' + escapeHtml(item.subscribe_url) + '">复制订阅</button></div></section>'; }).join('');
