@@ -19,6 +19,7 @@ use App\Http\Controllers\V2\Admin\KnowledgeController;
 use App\Http\Controllers\V2\Admin\PaymentController;
 use App\Http\Controllers\V2\Admin\SystemController;
 use App\Http\Controllers\V2\Admin\ThemeController;
+use App\Http\Controllers\V2\Admin\SoftwareController;
 use App\Http\Controllers\V2\Admin\TrafficResetController;
 use Illuminate\Contracts\Routing\Registrar;
 
@@ -30,6 +31,14 @@ class AdminRoute
             'prefix' => admin_setting('secure_path', admin_setting('frontend_admin_path', hash('crc32b', config('app.key')))),
             'middleware' => ['admin', 'log'],
         ], function ($router) {
+            // Config
+            $router->group(['prefix' => 'software'], function ($router) {
+                $router->get('/config', [SoftwareController::class, 'config']);
+                $router->post('/config', [SoftwareController::class, 'save']);
+                $router->get('/telemetry', [SoftwareController::class, 'telemetry']);
+                $router->post('/subscription/delete', [SoftwareController::class, 'deleteSubscription']);
+            });
+
             // Config
             $router->group([
                 'prefix' => 'config'

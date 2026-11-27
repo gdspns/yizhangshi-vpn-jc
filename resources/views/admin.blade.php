@@ -176,6 +176,7 @@
       border-color: #3a4c68 !important;
     }
   </style>
+  <link rel="stylesheet" href="/assets/software-admin.css?v=20261127.3">
 </head>
 
 <body>
@@ -364,6 +365,13 @@
     html.dark #root .text-green-700, html.dark #root .text-gray-700,
     html.dark #root .text-gray-900 { color: hsl(var(--foreground)) !important; }
   </style>
+  <script>
+    window.vpscsSoftwareAdmin = {
+      apiBase: @json('/api/v2/' . $secure_path . '/software'),
+      version: '2026.11.27.3'
+    };
+  </script>
+  <script defer src="/assets/software-admin.js?v=20261127.3"></script>
 </body>
 
 </html>

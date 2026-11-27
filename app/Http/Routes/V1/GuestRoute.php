@@ -5,6 +5,7 @@ use App\Http\Controllers\V1\Guest\CommController;
 use App\Http\Controllers\V1\Guest\PaymentController;
 use App\Http\Controllers\V1\Guest\PlanController;
 use App\Http\Controllers\V1\Guest\TelegramController;
+use App\Http\Controllers\V1\Guest\SoftwareController;
 use Illuminate\Contracts\Routing\Registrar;
 
 class GuestRoute
@@ -22,6 +23,8 @@ class GuestRoute
             $router->match(['get', 'post'], '/payment/notify/{method}/{uuid}', [PaymentController::class, 'notify']);
             // Comm
             $router->get('/comm/config', [CommController::class, 'config']);
+            $router->get('/software/config', [SoftwareController::class, 'config'])->middleware('throttle:120,1');
+            $router->post('/software/telemetry', [SoftwareController::class, 'telemetry'])->middleware('throttle:120,1');
         });
     }
 }
