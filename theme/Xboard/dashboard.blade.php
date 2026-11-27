@@ -8,8 +8,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/theme/{{$theme}}/assets/xigua.css?v={{$version}}-preview3" />
-  <script defer src="/theme/{{$theme}}/assets/xigua.js?v={{$version}}-preview3"></script>
+  <link rel="stylesheet" href="/theme/{{$theme}}/assets/xigua.css?v={{$version}}-layout4" />
+  <script defer src="/theme/{{$theme}}/assets/xigua.js?v={{$version}}-layout4"></script>
 </head>
 <style>
   .markdown-body { white-space: pre-line; }
@@ -262,14 +262,19 @@
         var content = card && card.querySelector('.n-card__content');
         if (!content) return;
         subscriptionRenderBusy = true;
-        nativeFetch('/api/v1/user/getSubscriptions', { headers: authHeaders() }).then(function (r) { return r.json(); }).then(function (payload) {
+        nativeFetch('/api/v1/user/getSubscriptions', { headers: authHeaders(), credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (payload) {
           var items = payload.data || [];
+          if (!Array.isArray(items) || !items.length) return;
           var list = document.createElement('div'); list.id = 'vpscs-subscription-list'; list.className = 'vpscs-subscription-list';
           list.innerHTML = items.map(function (item) { var used = Number(item.u || 0) + Number(item.d || 0); var total = Number(item.transfer_enable || 0); var expires = item.expired_at ? new Date(Number(item.expired_at) * 1000).toLocaleDateString() : '长期有效'; return '<section class="vpscs-subscription-card"><div class="vpscs-subscription-head"><span class="vpscs-subscription-name">' + escapeHtml(item.name || '订阅') + '</span><span>到期：' + expires + '</span></div><p class="vpscs-subscription-meta">已用 ' + (used / 1073741824).toFixed(2) + ' GB / ' + (total / 1073741824).toFixed(2) + ' GB</p><div class="vpscs-subscription-url">' + escapeHtml(item.subscribe_url) + '</div><div class="vpscs-subscription-actions"><button data-renew="' + item.id + '">续费订阅</button><button data-copy="' + escapeHtml(item.subscribe_url) + '">复制订阅</button></div></section>'; }).join('');
-          content.appendChild(list);
+          content.replaceChildren(list);
           list.addEventListener('click', function (event) { var renew = event.target.closest('[data-renew]'); var copy = event.target.closest('[data-copy]'); if (renew) { sessionStorage.setItem('vpscs_renew_subscription_id', renew.dataset.renew); location.hash = '#/plan'; } if (copy) navigator.clipboard.writeText(copy.dataset.copy); });
         }).finally(function () { subscriptionRenderBusy = false; });
       }
+      // Some browsers finish restoring the cached Vue view without producing
+      // another child-list mutation.  A light poll makes the enhancement
+      // deterministic after refresh and stops doing work once it is rendered.
+      setInterval(renderSubscriptionList, 900);
     })();
   </script>
 </body>
