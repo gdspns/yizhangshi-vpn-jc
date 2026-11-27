@@ -42,7 +42,10 @@ class Plugin extends AbstractPlugin implements PaymentInterface
             ],
             'currency' => [
                 'label' => '收款币种', 'type' => 'select', 'required' => true, 'default' => 'USDT',
-                'options' => ['USDT' => 'USDT (TRC20)', 'TRX' => 'TRX'],
+                'options' => [
+                    ['value' => 'USDT', 'label' => 'USDT (TRC20)'],
+                    ['value' => 'TRX', 'label' => 'TRX'],
+                ],
             ],
             'cny_rate' => [
                 'label' => '1 个币折合人民币', 'type' => 'string', 'required' => true, 'default' => '7.20',
