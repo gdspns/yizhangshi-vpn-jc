@@ -45,6 +45,15 @@ WORKDIR /www
 COPY .docker /
 COPY . /www
 
+# MiniPaaS checks out the application repository without Git submodules.
+# Fetch the admin UI at the exact commit pinned by public/assets/admin so every
+# image contains the dashboard assets instead of serving the fallback 404s.
+RUN rm -rf /www/public/assets/admin && \
+    git clone https://github.com/cedar2025/xboard-admin-dist.git /www/public/assets/admin && \
+    git -C /www/public/assets/admin checkout ef5f43da335092cbff8fdf0ad7ff9b4d92d7d0d7 && \
+    rm -rf /www/public/assets/admin/.git && \
+    test -f /www/public/assets/admin/manifest.json
+
 COPY .docker/supervisor/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY .docker/caddy/Caddyfile /etc/caddy/Caddyfile
 COPY .docker/php/zz-xboard.ini /usr/local/etc/php/conf.d/zz-xboard.ini
