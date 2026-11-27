@@ -8,8 +8,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/theme/{{$theme}}/assets/xigua.css?v={{$version}}-layout5" />
-  <script defer src="/theme/{{$theme}}/assets/xigua.js?v={{$version}}-layout5"></script>
+  <link rel="stylesheet" href="/theme/{{$theme}}/assets/xigua.css?v={{$version}}-layout6" />
+  <script defer src="/theme/{{$theme}}/assets/xigua.js?v={{$version}}-layout6"></script>
 </head>
 <style>
   .markdown-body { white-space: pre-line; }
@@ -139,7 +139,7 @@
       <section class="vl-section vl-soft" id="plans"><div class="vl-wrap"><h2 class="vl-h2 vl-center">套餐与价格</h2><p class="vl-sub vl-center">以下内容实时读取后台已上架商品，修改套餐后首页自动同步。</p><div class="vl-plan-filter" role="group" aria-label="套餐类型"><button class="vl-filter-btn is-active" data-plan-filter="all">全部</button><button class="vl-filter-btn" data-plan-filter="periodic">周期性</button><button class="vl-filter-btn" data-plan-filter="onetime">一次性</button></div><ul id="vl-plan-list" class="vl-plans"><li class="vl-empty">正在加载套餐…</li></ul></div></section>
       <section class="vl-section"><div class="vl-wrap"><div class="vl-final"><h2 class="vl-h2">现在开始</h2><p>注册账号、选择套餐，几分钟即可完成配置。</p><p class="vl-cta" style="justify-content:center"><a class="vl-btn vl-enter-app" href="#/register">立即注册</a><a class="vl-link vl-enter-app" style="color:#fff" href="#/login">已有账号，去登录</a></p></div></div></section>
     </main>
-    <footer class="vl-foot"><div class="vl-wrap vl-foot-in"><span>© {{ $title }}</span><span class="vl-version">VPSCS v2026.11.27.3</span><span><a class="vl-link vl-enter-app" href="#/login">登录</a> · <a class="vl-link vl-enter-app" href="#/register">注册</a></span></div></footer>
+    <footer class="vl-foot"><div class="vl-wrap vl-foot-in"><span>© {{ $title }}</span><span class="vl-version">VPSCS v2026.11.27.4</span><span><a class="vl-link vl-enter-app" href="#/login">登录</a> · <a class="vl-link vl-enter-app" href="#/register">注册</a></span></div></footer>
   </div>
 
   <script>
@@ -252,8 +252,26 @@
             node.closest('button,a')?.addEventListener('click', function () { sessionStorage.removeItem('vpscs_renew_subscription_id'); }, { once: true });
           }
         });
+        enforcePlanGrid();
         renderSubscriptionList();
       }).observe(document.getElementById('app'), { childList: true, subtree: true });
+
+      function enforcePlanGrid() {
+        if (!/^#\/plan(?:\?|$)/i.test(location.hash)) return;
+        var grid = document.querySelector('#app .card-container');
+        if (!grid) return;
+        var columns = innerWidth <= 680 ? 1 : (innerWidth <= 1000 ? 2 : 3);
+        grid.style.setProperty('display', 'grid', 'important');
+        grid.style.setProperty('grid-template-columns', 'repeat(' + columns + ', minmax(0, 1fr))', 'important');
+        Array.from(grid.children).forEach(function (item) {
+          item.style.setProperty('width', 'auto', 'important');
+          item.style.setProperty('min-width', '0', 'important');
+          var card = item.querySelector('.n-card');
+          if (card) card.style.setProperty('width', '100%', 'important');
+        });
+      }
+      addEventListener('resize', enforcePlanGrid, { passive: true });
+      addEventListener('hashchange', function () { setTimeout(enforcePlanGrid, 0); });
 
       var subscriptionRenderBusy = false;
       function authHeaders() {
@@ -265,15 +283,26 @@
         if (!/dashboard/i.test(location.hash) || subscriptionRenderBusy || document.getElementById('vpscs-subscription-list')) return;
         var card = Array.from(document.querySelectorAll('#app .n-card')).find(function (node) { return node.textContent.includes('我的订阅'); });
         var content = card && card.querySelector('.n-card__content');
-        if (!content) return;
+        if (!content || content.dataset.vpscsSubscriptionManaged === '1') return;
+        content.dataset.vpscsSubscriptionManaged = '1';
+        var loading = document.createElement('div');
+        loading.className = 'vpscs-subscription-loading';
+        loading.textContent = '正在加载订阅卡片…';
+        content.replaceChildren(loading);
         subscriptionRenderBusy = true;
         nativeFetch('/api/v1/user/getSubscriptions', { headers: authHeaders(), credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (payload) {
           var items = payload.data || [];
-          if (!Array.isArray(items) || !items.length) return;
+          if (!Array.isArray(items) || !items.length) throw new Error(payload.message || '暂时没有有效订阅');
           var list = document.createElement('div'); list.id = 'vpscs-subscription-list'; list.className = 'vpscs-subscription-list';
           list.innerHTML = items.map(function (item) { var used = Number(item.u || 0) + Number(item.d || 0); var total = Number(item.transfer_enable || 0); var expires = item.expired_at ? new Date(Number(item.expired_at) * 1000).toLocaleDateString() : '长期有效'; return '<section class="vpscs-subscription-card"><div class="vpscs-subscription-head"><span class="vpscs-subscription-name">' + escapeHtml(item.name || '订阅') + '</span><span>到期：' + expires + '</span></div><p class="vpscs-subscription-meta">已用 ' + (used / 1073741824).toFixed(2) + ' GB / ' + (total / 1073741824).toFixed(2) + ' GB</p><div class="vpscs-subscription-url">' + escapeHtml(item.subscribe_url) + '</div><div class="vpscs-subscription-actions"><button data-renew="' + item.id + '">续费订阅</button><button data-copy="' + escapeHtml(item.subscribe_url) + '">复制订阅</button></div></section>'; }).join('');
           content.replaceChildren(list);
           list.addEventListener('click', function (event) { var renew = event.target.closest('[data-renew]'); var copy = event.target.closest('[data-copy]'); if (renew) { sessionStorage.setItem('vpscs_renew_subscription_id', renew.dataset.renew); location.hash = '#/plan'; } if (copy) navigator.clipboard.writeText(copy.dataset.copy); });
+        }).catch(function (error) {
+          var failed = document.createElement('div');
+          failed.className = 'vpscs-subscription-loading is-error';
+          failed.innerHTML = '<span>' + escapeHtml(error.message || '订阅加载失败') + '</span><button type="button">重新加载</button>';
+          failed.querySelector('button').addEventListener('click', function () { content.dataset.vpscsSubscriptionManaged = ''; content.replaceChildren(); renderSubscriptionList(); });
+          content.replaceChildren(failed);
         }).finally(function () { subscriptionRenderBusy = false; });
       }
       // Some browsers finish restoring the cached Vue view without producing

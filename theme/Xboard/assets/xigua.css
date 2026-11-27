@@ -216,6 +216,9 @@ body[data-xg-route="/plan"] #app .card-container > .card-item:nth-child(3n) > .n
 .vpscs-subscription-actions { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:auto; padding-top:22px; }
 .vpscs-subscription-actions button { min-height:48px; padding:0 16px; border:0; border-radius:12px; color:#fff; background:#078c67; cursor:pointer; font-weight:750; }
 .vpscs-subscription-actions button:last-child { background:#30343c; }
+.vpscs-subscription-loading { min-height:220px; display:flex; align-items:center; justify-content:center; gap:14px; border:1px dashed #39443e; border-radius:18px; color:#9fb0a6; background:#151b18; }
+.vpscs-subscription-loading.is-error { color:#f0a5a5; }
+.vpscs-subscription-loading button { min-height:38px; padding:0 14px; border:1px solid #4a5c52; border-radius:9px; color:#edf5f0; background:#25332b; cursor:pointer; }
 :is(html.dark, body.dark) .vpscs-subscription-card { background:#17191d; }
 @media (max-width:1000px) { .vpscs-subscription-list { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media (max-width:680px) { .vpscs-subscription-list { grid-template-columns:1fr; } }
