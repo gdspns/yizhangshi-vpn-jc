@@ -56,10 +56,10 @@ Route::get('/', function (Request $request) {
         }
 
         $renderParams = [
-            'title' => admin_setting('app_name', 'Xboard'),
+            'title' => admin_setting('app_name', 'VPSCS'),
             'theme' => $theme,
             'version' => app(UpdateService::class)->getCurrentVersion(),
-            'description' => admin_setting('app_description', 'Xboard is best'),
+            'description' => admin_setting('app_description', 'VPSCS'),
             'logo' => admin_setting('logo'),
             'theme_config' => $themeService->getConfig($theme)
         ];
@@ -76,7 +76,7 @@ Route::get('/', function (Request $request) {
 //TODO:: 兼容
 Route::get('/' . admin_setting('secure_path', admin_setting('frontend_admin_path', hash('crc32b', config('app.key')))), function () {
     return response()->view('admin', [
-        'title' => admin_setting('app_name', 'XBoard'),
+        'title' => admin_setting('app_name', 'VPSCS'),
         'theme_sidebar' => admin_setting('frontend_theme_sidebar', 'light'),
         'theme_header' => admin_setting('frontend_theme_header', 'dark'),
         'theme_color' => admin_setting('frontend_theme_color', 'default'),

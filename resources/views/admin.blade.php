@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{{ $title }}</title>
   <script>
+    document.documentElement.classList.add('dark', 'vpscs-admin-dark');
     window.settings = {{ Illuminate\Support\Js::from([
       'base_url' => '/',
       'title' => $title,
@@ -81,6 +82,73 @@
     <script src="/assets/admin/locales/zh-CN.js"></script>
     <script src="/assets/admin/locales/ko-KR.js"></script>
   @endif
+  <style id="vpscs-admin-dark-theme">
+    :root, html.dark {
+      color-scheme: dark;
+      --el-bg-color: #0d1422;
+      --el-bg-color-page: #080d17;
+      --el-bg-color-overlay: #111a2b;
+      --el-fill-color: #162033;
+      --el-fill-color-light: #18243a;
+      --el-fill-color-lighter: #1b2942;
+      --el-fill-color-blank: #0f1828;
+      --el-text-color-primary: #f1f5f9;
+      --el-text-color-regular: #d3dbea;
+      --el-text-color-secondary: #9caac0;
+      --el-text-color-placeholder: #718096;
+      --el-border-color: #2b3a52;
+      --el-border-color-light: #25334a;
+      --el-border-color-lighter: #202d42;
+      --el-border-color-extra-light: #1b2739;
+      --el-mask-color: rgba(2, 6, 15, .78);
+      --el-color-primary: #7c5cff;
+      --el-color-primary-light-3: #927cff;
+      --el-color-primary-light-5: #a99aff;
+      --el-color-primary-light-8: #282343;
+      --el-color-primary-light-9: #1a1930;
+    }
+    html, body, #root, .el-container, .el-main {
+      background: #080d17 !important;
+      color: #e8edf6 !important;
+    }
+    .el-aside, .el-header, .el-menu, .el-menu--popup, .el-card,
+    .el-dialog, .el-dialog__body, .el-drawer, .el-drawer__body,
+    .el-popover.el-popper, .el-dropdown__popper, .el-select__popper,
+    .el-picker-panel, .el-message-box {
+      background: #0f1828 !important;
+      color: #e8edf6 !important;
+      border-color: #293750 !important;
+    }
+    .el-card, .el-table, .el-table tr, .el-table th.el-table__cell,
+    .el-table td.el-table__cell, .el-table__expanded-cell,
+    .el-descriptions__body, .el-descriptions__table, .el-pagination {
+      background: #0f1828 !important;
+      color: #dbe4f2 !important;
+      border-color: #293750 !important;
+    }
+    .el-table th.el-table__cell,
+    .el-table--enable-row-hover .el-table__body tr:hover > td.el-table__cell,
+    .el-menu-item:hover, .el-sub-menu__title:hover {
+      background: #18243a !important;
+    }
+    .el-input__wrapper, .el-textarea__inner, .el-select__wrapper,
+    .el-input-number, .el-date-editor, .el-upload-dragger {
+      background: #101a2b !important;
+      color: #eef2f8 !important;
+      box-shadow: 0 0 0 1px #2b3a52 inset !important;
+      border-color: #2b3a52 !important;
+    }
+    .el-input__inner, .el-textarea__inner, .el-select__selected-item,
+    .el-form-item__label, .el-dialog__title, .el-drawer__title,
+    .el-card__header, .el-menu-item, .el-sub-menu__title,
+    h1, h2, h3, h4, h5, h6 { color: #eef2f8 !important; }
+    .el-menu-item.is-active, a { color: #9f8cff !important; }
+    .el-empty__description, .el-text, small, .text-gray-500 {
+      color: #9caac0 !important;
+    }
+    .el-table::before, .el-table__inner-wrapper::before, .el-card,
+    .el-dialog, .el-drawer { border-color: #293750 !important; }
+  </style>
 </head>
 
 <body>
