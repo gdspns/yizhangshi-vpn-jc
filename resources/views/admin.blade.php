@@ -176,8 +176,8 @@
         var nodes = root.querySelectorAll('label');
         for (var i = 0; i < nodes.length; i++) {
           var text = (nodes[i].textContent || '').trim();
-          if (labels.some(function (label) { return text.indexOf(label) !== -1; })) {
-            return nodes[i].closest('[data-slot="form-item"]') || nodes[i].parentElement;
+          if (labels.some(function (label) { return text === label; })) {
+            return nodes[i].closest('[data-slot="form-item"]') || nodes[i].closest('.space-y-1\\.5') || nodes[i].parentElement;
           }
         }
         return null;
@@ -215,8 +215,11 @@
           oneTimeField.style.display = type === 'onetime' ? '' : 'none';
           if (clearOther && type === 'periodic') updateInput(oneTimeField, '');
         }
+        var hasPeriodic = periodicFields.some(function (field) { var input = field.querySelector('input'); return input && Number(input.value) > 0; });
+        var oneInput = oneTimeField.querySelector('input');
+        select.value = oneInput && Number(oneInput.value) > 0 && !hasPeriodic ? 'onetime' : 'periodic';
         select.addEventListener('change', function () { apply(select.value, true); });
-        apply('periodic', false);
+        apply(select.value, false);
       }
 
       new MutationObserver(function () {

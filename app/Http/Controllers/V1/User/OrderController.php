@@ -139,6 +139,15 @@ class OrderController extends Controller
                 'data' => true
             ]);
         }
+        // Synthetic method 0 is wallet balance. It is only used when the user
+        // actively selects it, so choosing Alipay always reaches Alipay.
+        if ((string) $method === '0') {
+            if (!(new OrderService($order))->paidWithBalance()) {
+                return $this->fail([400, '余额不足或余额支付失败']);
+            }
+            return response(['type' => -1, 'data' => true]);
+        }
+
         $payment = Payment::find($method);
         if (!$payment || !$payment->enable) {
             return $this->fail([400, __('Payment method is not available')]);
@@ -175,7 +184,7 @@ class OrderController extends Controller
         return $this->success($order->status);
     }
 
-    public function getPaymentMethod()
+    public function getPaymentMethod(Request $request)
     {
         $methods = Payment::select([
             'id',
@@ -189,6 +198,17 @@ class OrderController extends Controller
             ->orderBy('sort', 'ASC')
             ->get();
 
+        $user = $request->user();
+        if ($user && $user->balance > 0) {
+            $methods->prepend((object) [
+                'id' => 0,
+                'name' => '余额支付（¥' . number_format($user->balance / 100, 2) . '）',
+                'payment' => 'Balance',
+                'icon' => 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Cpath fill=%22%237c3aed%22 d=%22M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2H5a2 2 0 0 0-2 2V5Zm0 6a2 2 0 0 1 2-2h16v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-8Zm13 2v2h3v-2h-3Z%22/%3E%3C/svg%3E',
+                'handling_fee_fixed' => 0,
+                'handling_fee_percent' => 0,
+            ]);
+        }
         return $this->success($methods);
     }
 

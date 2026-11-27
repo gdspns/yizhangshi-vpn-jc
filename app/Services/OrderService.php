@@ -99,10 +99,6 @@ class OrderService
             $orderService->setVipDiscount($user);
             $orderService->setOrderType($user);
 
-            if ($user->balance && $order->total_amount > 0) {
-                $orderService->handleUserBalance($user, $userService);
-            }
-
             $orderService->setInvite(user: $user);
 
             if (!$order->save()) {
@@ -355,6 +351,52 @@ class OrderService
             return false;
         }
         return true;
+    }
+
+    /**
+     * Pay the complete order from wallet balance only when the user explicitly
+     * selects that method at checkout. External gateways must never be bypassed
+     * by an automatic balance deduction during order creation.
+     */
+    public function paidWithBalance(): bool
+    {
+        try {
+            [$order, $shouldDispatch] = DB::transaction(function () {
+                $order = $this->lockCurrentOrderWhenStatus(Order::STATUS_PENDING);
+                if (!$order) {
+                    return [$this->order, false];
+                }
+                $user = User::whereKey($order->user_id)->lockForUpdate()->first();
+                if (!$user || $order->total_amount <= 0 || $user->balance < $order->total_amount) {
+                    throw new ApiException('账户余额不足');
+                }
+
+                $paidAmount = (int) $order->total_amount;
+                $user->balance -= $paidAmount;
+                if (!$user->save()) {
+                    throw new \RuntimeException('Failed to deduct wallet balance.');
+                }
+
+                $order->balance_amount = $paidAmount;
+                $order->total_amount = 0;
+                $order->status = Order::STATUS_PROCESSING;
+                $order->paid_at = time();
+                $order->callback_no = 'balance_' . $order->trade_no;
+                if (!$order->save()) {
+                    throw new \RuntimeException('Failed to save balance payment.');
+                }
+                return [$order, true];
+            });
+
+            $this->order = $order;
+            if ($shouldDispatch) {
+                OrderHandleJob::dispatchSync($order->trade_no);
+            }
+            return true;
+        } catch (\Exception $e) {
+            Log::error($e);
+            return false;
+        }
     }
 
     public function cancel(): bool
