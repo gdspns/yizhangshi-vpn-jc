@@ -6,13 +6,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{{ $title }}</title>
   <script>
-    window.settings = @json([
+    window.settings = {{ Illuminate\Support\Js::from([
       'base_url' => '/',
       'title' => $title,
       'version' => $version,
       'logo' => $logo,
       'secure_path' => $secure_path,
-    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    ]) }};
     window.__xboardAdminBootErrors = [];
     window.addEventListener('error', function (event) {
       window.__xboardAdminBootErrors.push(event.message || 'Unknown resource error');
