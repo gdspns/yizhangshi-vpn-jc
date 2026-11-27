@@ -173,7 +173,7 @@ class Plugin extends AbstractPlugin
       $welcomeText .= "✅ 您已绑定账号：{$user->email}\n\n";
       $welcomeText .= $this->getConfig('start_unbind_guide', '📋 可用命令：\\n/traffic - 查看流量使用情况\\n/getlatesturl - 获取订阅链接\\n/unbind - 解绑账号');
     } else {
-      $welcomeText .= $this->getConfig('start_bind_guide', '🔗 请先绑定您的 VPSCS 账号：\\n1. 登录您的 XBoard 账户\\n2. 复制您的订阅链接\\n3. 发送 /bind + 订阅链接') . "\n\n";
+      $welcomeText .= $this->getConfig('start_bind_guide', '🔗 请先绑定您的 VPSCS 账号：\\n1. 登录您的 VPSCS 账户\\n2. 复制您的订阅链接\\n3. 发送 /bind + 订阅链接') . "\n\n";
       $welcomeText .= $this->getConfig('start_bind_commands', '📋 可用命令：\\n/bind [订阅链接] - 绑定账号');
     }
 

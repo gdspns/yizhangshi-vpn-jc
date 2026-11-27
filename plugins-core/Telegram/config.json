@@ -34,7 +34,7 @@
         },
         "start_bind_guide": {
             "type": "text",
-            "default": "🔗 请先绑定您的 VPSCS 账号：\\n1. 登录您的 XBoard 账户\\n2. 复制您的订阅链接\\n3. 发送 /bind + 订阅链接",
+            "default": "🔗 请先绑定您的 VPSCS 账号：\\n1. 登录您的 VPSCS 账户\\n2. 复制您的订阅链接\\n3. 发送 /bind + 订阅链接",
             "label": "绑定指导",
             "description": "未绑定用户显示的绑定指导文本"
         },

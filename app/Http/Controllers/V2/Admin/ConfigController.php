@@ -37,11 +37,11 @@ class ConfigController extends Controller
     {
         $mailLog = MailService::sendEmail([
             'email' => $request->user()->email,
-            'subject' => 'This is xboard test email',
+            'subject' => 'VPSCS 测试邮件',
             'template_name' => 'notify',
             'template_value' => [
                 'name' => admin_setting('app_name', 'VPSCS'),
-                'content' => 'This is xboard test email',
+                'content' => '这是一封来自 VPSCS 的测试邮件',
                 'url' => admin_setting('app_url')
             ]
         ]);
