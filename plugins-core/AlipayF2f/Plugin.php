@@ -6,6 +6,7 @@ use App\Services\Plugin\AbstractPlugin;
 use App\Contracts\PaymentInterface;
 use App\Exceptions\ApiException;
 use Illuminate\Support\Facades\Log;
+use App\Models\Order;
 use Plugin\AlipayF2f\library\AlipayF2F;
 
 class Plugin extends AbstractPlugin implements PaymentInterface
@@ -81,8 +82,18 @@ class Plugin extends AbstractPlugin implements PaymentInterface
 
     public function notify($params): array|bool
     {
-        if ($params['trade_status'] !== 'TRADE_SUCCESS')
+        if (($params['trade_status'] ?? '') !== 'TRADE_SUCCESS')
             return false;
+
+        if (($params['app_id'] ?? '') !== (string) $this->getConfig('app_id')) {
+            return false;
+        }
+
+        $order = Order::where('trade_no', $params['out_trade_no'] ?? '')->first();
+        $expected = $order ? (($order->total_amount + ($order->handling_amount ?? 0)) / 100) : null;
+        if (!$order || !isset($params['total_amount']) || abs((float) $params['total_amount'] - $expected) > 0.001) {
+            return false;
+        }
 
         $gateway = new AlipayF2F();
         $gateway->setAppId($this->getConfig('app_id'));

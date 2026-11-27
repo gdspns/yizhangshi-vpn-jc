@@ -28,15 +28,16 @@ class AlipayF2F
         unset($data['sign_type']);
         ksort($data);
         $data = $this->buildQuery($data);
-        $res = "-----BEGIN PUBLIC KEY-----\n" .
-            wordwrap($this->alipayPublicKey, 64, "\n", true) .
-            "\n-----END PUBLIC KEY-----";
-        if ("RSA2" == $this->signType) {
-            $result = (openssl_verify($data, base64_decode($sign), $res, OPENSSL_ALGO_SHA256) === 1);
-        } else {
-            $result = (openssl_verify($data, base64_decode($sign), $res) === 1);
+        $res = $this->normalizePublicKey($this->alipayPublicKey);
+        $publicKey = openssl_pkey_get_public($res);
+        if ($publicKey === false) {
+            return false;
         }
-        openssl_free_key(openssl_get_publickey($res));
+        if ("RSA2" == $this->signType) {
+            $result = (openssl_verify($data, base64_decode($sign), $publicKey, OPENSSL_ALGO_SHA256) === 1);
+        } else {
+            $result = (openssl_verify($data, base64_decode($sign), $publicKey) === 1);
+        }
         return $result;
     }
 
@@ -133,21 +134,10 @@ class AlipayF2F
 
     private function buildSign(string $signData): string
     {
-        $privateKey = $this->privateKey;
-        $p_key = array();
-        //如果私钥是 1行
-        if (!stripos($privateKey, "\n")) {
-            $i = 0;
-            while ($key_str = substr($privateKey, $i * 64, 64)) {
-                $p_key[] = $key_str;
-                $i++;
-            }
+        $privateId = openssl_pkey_get_private($this->normalizePrivateKey($this->privateKey), '');
+        if ($privateId === false) {
+            throw new \Exception('支付宝应用私钥格式不正确');
         }
-        $privateKey = "-----BEGIN RSA PRIVATE KEY-----\n" . implode("\n", $p_key);
-        $privateKey = $privateKey . "\n-----END RSA PRIVATE KEY-----";
-
-        //私钥
-        $privateId = openssl_pkey_get_private($privateKey, '');
 
         // 签名
         $signature = '';
@@ -160,10 +150,26 @@ class AlipayF2F
             openssl_sign($signData, $signature, $privateId, OPENSSL_ALGO_SHA1);
         }
 
-        openssl_free_key($privateId);
-
         //加密后的内容通常含有特殊字符，需要编码转换下
         $signature = base64_encode($signature);
         return $signature;
+    }
+
+    private function normalizePrivateKey(string $key): string
+    {
+        $key = trim(str_replace("\r", '', $key));
+        if (str_contains($key, 'BEGIN')) {
+            return $key;
+        }
+        return "-----BEGIN RSA PRIVATE KEY-----\n" . wordwrap(preg_replace('/\s+/', '', $key), 64, "\n", true) . "\n-----END RSA PRIVATE KEY-----";
+    }
+
+    private function normalizePublicKey(string $key): string
+    {
+        $key = trim(str_replace("\r", '', $key));
+        if (str_contains($key, 'BEGIN')) {
+            return $key;
+        }
+        return "-----BEGIN PUBLIC KEY-----\n" . wordwrap(preg_replace('/\s+/', '', $key), 64, "\n", true) . "\n-----END PUBLIC KEY-----";
     }
 }
