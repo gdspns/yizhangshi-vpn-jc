@@ -81,7 +81,9 @@
   .vl-final { padding: 58px; border-radius: 24px; color: #06100a; text-align: center; background: #52ba7d; }
   .vl-final .vl-btn { color: #dff8e9; background: #07100c; }
   .vl-foot { padding: 30px 0; border-top: 1px solid #26322c; color: #82958a; }
-  .vl-foot-in { display: flex; justify-content: space-between; }
+  .vl-foot-in { display: grid; grid-template-columns: 1fr auto 1fr; gap: 18px; align-items: center; }
+  .vl-foot-in > :last-child { justify-self: end; }
+  .vl-version { padding: 5px 10px; border: 1px solid #2b3a32; border-radius: 999px; color: #9fb2a7; background: #111814; font-size: 12px; letter-spacing: .04em; }
   .vl-steps { display: grid; grid-template-columns: repeat(3,1fr); gap: 18px; padding: 0; list-style: none; }
   .vl-step-n { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 13px; color: #07100b; background: #4fbd80; font-weight: 900; }
   .vl-step h3 { margin: 18px 0 8px; }
@@ -105,6 +107,8 @@
     .vl-hero { padding: 64px 0; }
     .vl-section { padding: 58px 0; }
     .vl-final { padding: 38px 22px; }
+    .vl-foot-in { grid-template-columns: 1fr; text-align: center; }
+    .vl-foot-in > :last-child { justify-self: center; }
   }
 </style>
 
@@ -135,7 +139,7 @@
       <section class="vl-section vl-soft" id="plans"><div class="vl-wrap"><h2 class="vl-h2 vl-center">套餐与价格</h2><p class="vl-sub vl-center">以下内容实时读取后台已上架商品，修改套餐后首页自动同步。</p><div class="vl-plan-filter" role="group" aria-label="套餐类型"><button class="vl-filter-btn is-active" data-plan-filter="all">全部</button><button class="vl-filter-btn" data-plan-filter="periodic">周期性</button><button class="vl-filter-btn" data-plan-filter="onetime">一次性</button></div><ul id="vl-plan-list" class="vl-plans"><li class="vl-empty">正在加载套餐…</li></ul></div></section>
       <section class="vl-section"><div class="vl-wrap"><div class="vl-final"><h2 class="vl-h2">现在开始</h2><p>注册账号、选择套餐，几分钟即可完成配置。</p><p class="vl-cta" style="justify-content:center"><a class="vl-btn vl-enter-app" href="#/register">立即注册</a><a class="vl-link vl-enter-app" style="color:#fff" href="#/login">已有账号，去登录</a></p></div></div></section>
     </main>
-    <footer class="vl-foot"><div class="vl-wrap vl-foot-in"><span>© {{ $title }}</span><span><a class="vl-link vl-enter-app" href="#/login">登录</a> · <a class="vl-link vl-enter-app" href="#/register">注册</a></span></div></footer>
+    <footer class="vl-foot"><div class="vl-wrap vl-foot-in"><span>© {{ $title }}</span><span class="vl-version">VPSCS v2026.11.27.1</span><span><a class="vl-link vl-enter-app" href="#/login">登录</a> · <a class="vl-link vl-enter-app" href="#/register">注册</a></span></div></footer>
   </div>
 
   <script>
