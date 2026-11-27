@@ -12,6 +12,16 @@
   <script defer src="/theme/{{$theme}}/assets/xigua.js?v={{$version}}"></script>
   <script type="module" crossorigin src="/theme/{{$theme}}/assets/umi.js"></script>
 </head>
+<style>
+  .markdown-body { white-space: pre-line; }
+  .markdown-body p { margin: 0 0 .55rem; }
+  .n-button.n-button--primary-type {
+    opacity: 1 !important;
+    filter: none !important;
+    font-weight: 700 !important;
+    box-shadow: 0 8px 18px rgba(124, 92, 255, .28) !important;
+  }
+</style>
 
 <body>
 

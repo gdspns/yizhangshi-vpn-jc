@@ -47,8 +47,26 @@ class PlanResource extends JsonResource
      */
     protected function getPeriodPrices(): array
     {
+        $periodicKeys = [
+            Plan::PERIOD_MONTHLY,
+            Plan::PERIOD_QUARTERLY,
+            Plan::PERIOD_HALF_YEARLY,
+            Plan::PERIOD_YEARLY,
+            Plan::PERIOD_TWO_YEARLY,
+            Plan::PERIOD_THREE_YEARLY,
+        ];
+        $hasPeriodicPrice = collect($periodicKeys)->contains(
+            fn(string $period): bool => (float) ($this->resource['prices'][$period] ?? 0) > 0
+        );
+
         return collect(Plan::LEGACY_PERIOD_MAPPING)
-            ->mapWithKeys(function (string $newPeriod, string $legacyPeriod): array {
+            ->mapWithKeys(function (string $newPeriod, string $legacyPeriod) use ($hasPeriodicPrice): array {
+                // A plan is either periodic or one-time. Older admin builds used
+                // to fill every price at once; prefer periodic prices so those
+                // plans are not incorrectly presented as one-time products.
+                if ($newPeriod === Plan::PERIOD_ONETIME && $hasPeriodicPrice) {
+                    return [$legacyPeriod => null];
+                }
                 $price = $this->resource['prices'][$newPeriod] ?? null;
                 return [
                     $legacyPeriod => $price !== null

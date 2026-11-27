@@ -134,7 +134,13 @@ class AlipayF2F
 
     private function buildSign(string $signData): string
     {
-        $privateId = openssl_pkey_get_private($this->normalizePrivateKey($this->privateKey), '');
+        $privateId = false;
+        foreach ($this->privateKeyCandidates($this->privateKey) as $candidate) {
+            $privateId = openssl_pkey_get_private($candidate, '');
+            if ($privateId !== false) {
+                break;
+            }
+        }
         if ($privateId === false) {
             throw new \Exception('支付宝应用私钥格式不正确');
         }
@@ -155,13 +161,17 @@ class AlipayF2F
         return $signature;
     }
 
-    private function normalizePrivateKey(string $key): string
+    private function privateKeyCandidates(string $key): array
     {
         $key = trim(str_replace("\r", '', $key));
         if (str_contains($key, 'BEGIN')) {
-            return $key;
+            return [$key];
         }
-        return "-----BEGIN RSA PRIVATE KEY-----\n" . wordwrap(preg_replace('/\s+/', '', $key), 64, "\n", true) . "\n-----END RSA PRIVATE KEY-----";
+        $body = wordwrap(preg_replace('/\s+/', '', $key), 64, "\n", true);
+        return [
+            "-----BEGIN PRIVATE KEY-----\n{$body}\n-----END PRIVATE KEY-----",
+            "-----BEGIN RSA PRIVATE KEY-----\n{$body}\n-----END RSA PRIVATE KEY-----",
+        ];
     }
 
     private function normalizePublicKey(string $key): string

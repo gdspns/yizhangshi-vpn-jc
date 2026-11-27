@@ -2,6 +2,8 @@
 
 namespace Plugin\AlipayF2f;
 
+require_once __DIR__ . '/library/AlipayF2F.php';
+
 use App\Services\Plugin\AbstractPlugin;
 use App\Contracts\PaymentInterface;
 use App\Exceptions\ApiException;

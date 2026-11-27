@@ -164,7 +164,72 @@
         (errors.length ? '<pre style="white-space:pre-wrap;color:#7a271a">' + errors.join('\n') + '</pre>' : '') +
         '</main>';
     }, 8000);
+
+    // Compatibility enhancement for the bundled admin UI: make the implicit
+    // pricing model explicit and prevent periodic/one-time prices being saved
+    // together. The backend still uses the established prices JSON structure.
+    (function () {
+      var periodicLabels = ['月付', '季付', '半年付', '年付', '两年付', '三年付'];
+      var oneTimeLabels = ['一次性', '流量包', '一次性套餐'];
+
+      function fieldByLabel(root, labels) {
+        var nodes = root.querySelectorAll('label');
+        for (var i = 0; i < nodes.length; i++) {
+          var text = (nodes[i].textContent || '').trim();
+          if (labels.some(function (label) { return text.indexOf(label) !== -1; })) {
+            return nodes[i].closest('[data-slot="form-item"]') || nodes[i].parentElement;
+          }
+        }
+        return null;
+      }
+
+      function updateInput(field, value) {
+        if (!field) return;
+        var input = field.querySelector('input');
+        if (!input) return;
+        var setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+        setter.call(input, value);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+
+      function enhancePlanDialog(dialog) {
+        if (dialog.dataset.vpscsPlanTypeReady === '1') return;
+        var periodicFields = periodicLabels.map(function (label) { return fieldByLabel(dialog, [label]); }).filter(Boolean);
+        var oneTimeField = fieldByLabel(dialog, oneTimeLabels);
+        if (!periodicFields.length || !oneTimeField) return;
+
+        dialog.dataset.vpscsPlanTypeReady = '1';
+        var box = document.createElement('div');
+        box.className = 'vpscs-plan-type';
+        box.innerHTML = '<label>套餐类型</label><select><option value="periodic">周期套餐（月付、季付、年付等）</option><option value="onetime">一次性套餐</option></select><small>两种类型不会再同时保存；切换类型会清空另一类型的价格。</small>';
+        var anchor = periodicFields[0].parentElement;
+        anchor.parentElement.insertBefore(box, anchor);
+        var select = box.querySelector('select');
+
+        function apply(type, clearOther) {
+          periodicFields.forEach(function (field) {
+            field.style.display = type === 'periodic' ? '' : 'none';
+            if (clearOther && type === 'onetime') updateInput(field, '');
+          });
+          oneTimeField.style.display = type === 'onetime' ? '' : 'none';
+          if (clearOther && type === 'periodic') updateInput(oneTimeField, '');
+        }
+        select.addEventListener('change', function () { apply(select.value, true); });
+        apply('periodic', false);
+      }
+
+      new MutationObserver(function () {
+        document.querySelectorAll('[role="dialog"]').forEach(enhancePlanDialog);
+      }).observe(document.body, { childList: true, subtree: true });
+    })();
   </script>
+  <style>
+    .vpscs-plan-type { margin: 0 0 16px; padding: 14px; border: 1px solid var(--el-border-color, #dcdfe6); border-radius: 8px; display: grid; gap: 8px; }
+    .vpscs-plan-type label { font-weight: 600; }
+    .vpscs-plan-type select { min-height: 38px; padding: 0 10px; border: 1px solid var(--el-border-color, #dcdfe6); border-radius: 6px; background: var(--el-bg-color, #fff); color: var(--el-text-color-primary, #303133); }
+    .vpscs-plan-type small { color: var(--el-text-color-secondary, #909399); }
+  </style>
 </body>
 
 </html>
