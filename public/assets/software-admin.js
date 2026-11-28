@@ -43,11 +43,22 @@
     Object.keys(config).forEach(function (key) { var node = form.elements[key]; if (!node) return; if (node.type === 'checkbox') node.checked = !!config[key]; else node.value = config[key] == null ? '' : config[key]; });
   }
   async function loadConfig() { setStatus('正在加载软件配置…'); try { fill(await api('config')); setStatus(''); } catch (error) { setStatus('❌ ' + error.message); } }
-  async function saveConfig(publishPopup) {
+  function setButtonStatus(button, message, busy) {
+    if (!button) return;
+    if (!button.dataset.defaultText) button.dataset.defaultText = button.textContent;
+    button.disabled = !!busy;
+    button.textContent = message;
+    if (!busy) window.setTimeout(function () { button.textContent = button.dataset.defaultText; }, 2600);
+  }
+  async function saveConfig(publishPopup, button) {
     var data = payload(); if (publishPopup) { data.popup_enabled = true; data.popup_version = String(Date.now()); }
-    setStatus('正在保存…');
-    try { fill(await api('config', { method: 'POST', body: JSON.stringify(data) })); setStatus('✅ 软件配置已保存'); }
-    catch (error) { setStatus('❌ ' + error.message); }
+    setStatus('正在保存…'); setButtonStatus(button, '保存中…', true);
+    try {
+      fill(await api('config', { method: 'POST', body: JSON.stringify(data) }));
+      setStatus('✅ 软件配置已保存'); setButtonStatus(button, '✓ 保存成功', false);
+    } catch (error) {
+      setStatus('❌ ' + error.message); setButtonStatus(button, '保存失败', false);
+    }
   }
   function dateText(value) { return value ? new Date(value).toLocaleString('zh-CN', { hour12: false }) : '-'; }
   function renderTelemetry() {
@@ -69,19 +80,20 @@
   function createPage() {
     page = document.createElement('main'); page.id = 'vpscs-software-page';
     page.innerHTML = '<div class="vpscs-sw-shell"><header class="vpscs-sw-head"><div><h1>软件管理</h1><p class="vpscs-sw-muted">管理客户端公告、版本更新和使用情况。</p></div><button class="vpscs-sw-btn" data-refresh>刷新数据</button></header><div class="vpscs-sw-status" data-status></div><form data-form><div class="vpscs-sw-grid">' +
-      '<section class="vpscs-sw-card"><div class="vpscs-sw-title"><h2>顶部滚动公告</h2><label class="vpscs-sw-check"><input name="notice_enabled" type="checkbox">启用</label></div><label class="vpscs-sw-field">公告内容<textarea name="notice" rows="5" maxlength="300"></textarea></label></section>' +
-      '<section class="vpscs-sw-card"><div class="vpscs-sw-title"><h2>登录用户弹窗公告</h2><label class="vpscs-sw-check"><input name="popup_enabled" type="checkbox">启用</label></div><label class="vpscs-sw-field">弹窗内容<textarea name="popup_content" rows="5" maxlength="1000"></textarea></label><label class="vpscs-sw-field">每位用户最多显示次数<input name="popup_display_count" type="number" min="1" max="20" value="1"></label><input name="popup_version" type="hidden"><div class="vpscs-sw-actions"><button type="button" class="vpscs-sw-btn" data-publish-popup>重新发布弹窗</button></div></section>' +
-      '<section class="vpscs-sw-card is-wide"><div class="vpscs-sw-title"><h2>软件接口域名</h2></div><label class="vpscs-sw-field">只填写域名，不填写协议或路径<input name="api_domain" placeholder="www.example.com"></label></section>' +
-      '<section class="vpscs-sw-card is-wide"><div class="vpscs-sw-title"><h2>软件版本更新</h2><label class="vpscs-sw-check"><input name="update_enabled" type="checkbox">启用更新</label></div><div class="vpscs-sw-grid"><label class="vpscs-sw-field">最新版本号<input name="latest_version" placeholder="0.3.3"></label><label class="vpscs-sw-check"><input name="force_update" type="checkbox">强制更新</label><label class="vpscs-sw-field is-wide">Windows 安装包 HTTPS 地址<input name="windows_download_url" type="url"></label><label class="vpscs-sw-field is-wide">macOS 安装包 HTTPS 地址<input name="macos_download_url" type="url"></label><label class="vpscs-sw-field is-wide">更新说明<textarea name="update_notes" rows="5" maxlength="3000"></textarea></label></div></section>' +
+      '<section class="vpscs-sw-card"><div class="vpscs-sw-title"><h2>顶部滚动公告</h2><label class="vpscs-sw-check"><input name="notice_enabled" type="checkbox">启用</label></div><label class="vpscs-sw-field">公告内容<textarea name="notice" rows="5" maxlength="300"></textarea></label><div class="vpscs-sw-actions"><button type="button" class="vpscs-sw-btn is-primary" data-save-section="notice">保存滚动公告</button></div></section>' +
+      '<section class="vpscs-sw-card"><div class="vpscs-sw-title"><h2>登录用户弹窗公告</h2><label class="vpscs-sw-check"><input name="popup_enabled" type="checkbox">启用</label></div><label class="vpscs-sw-field">弹窗内容<textarea name="popup_content" rows="5" maxlength="1000"></textarea></label><label class="vpscs-sw-field">每位用户最多显示次数<input name="popup_display_count" type="number" min="1" max="20" value="1"></label><input name="popup_version" type="hidden"><div class="vpscs-sw-actions"><button type="button" class="vpscs-sw-btn is-primary" data-save-section="popup">保存弹窗设置</button><button type="button" class="vpscs-sw-btn" data-publish-popup>重新发布弹窗</button></div></section>' +
+      '<section class="vpscs-sw-card is-wide"><div class="vpscs-sw-title"><h2>软件接口域名</h2></div><label class="vpscs-sw-field">只填写域名，不填写协议或路径<input name="api_domain" placeholder="www.example.com"></label><p class="vpscs-sw-muted">换域名时在这里填写新域名并保存；请先确保新域名已部署相同软件接口且 HTTPS 正常。</p><div class="vpscs-sw-actions"><button type="button" class="vpscs-sw-btn is-primary" data-save-section="domain">保存接口域名</button></div></section>' +
+      '<section class="vpscs-sw-card is-wide"><div class="vpscs-sw-title"><h2>软件版本更新</h2><label class="vpscs-sw-check"><input name="update_enabled" type="checkbox">启用更新</label></div><div class="vpscs-sw-grid"><label class="vpscs-sw-field">最新版本号<input name="latest_version" placeholder="0.3.3"></label><label class="vpscs-sw-check"><input name="force_update" type="checkbox">强制更新</label><label class="vpscs-sw-field is-wide">Windows 安装包 HTTPS 地址<input name="windows_download_url" type="url"></label><label class="vpscs-sw-field is-wide">macOS 安装包 HTTPS 地址<input name="macos_download_url" type="url"></label><label class="vpscs-sw-field is-wide">更新说明<textarea name="update_notes" rows="5" maxlength="3000"></textarea></label></div><div class="vpscs-sw-actions"><button type="button" class="vpscs-sw-btn is-primary" data-save-section="update">保存版本更新</button></div></section>' +
       '<section class="vpscs-sw-card is-wide"><div class="vpscs-sw-title"><h2>客户端接口</h2></div><div class="vpscs-sw-code">GET ' + escapeHtml(location.origin + '/api/v1/guest/software/config') + '</div><div class="vpscs-sw-code" style="margin-top:10px">POST ' + escapeHtml(location.origin + '/api/v1/guest/software/telemetry') + '</div></section>' +
       '<div class="vpscs-sw-actions"><button type="submit" class="vpscs-sw-btn is-primary">保存全部软件配置</button></div></div></form>' +
       '<section class="vpscs-sw-card" style="margin-top:22px"><div class="vpscs-sw-title"><h2>软件使用情况</h2></div><div class="vpscs-sw-stats"><div class="vpscs-sw-stat">当前在线<strong data-online-count>0</strong></div><div class="vpscs-sw-stat">登录过的软件用户<strong data-user-count>0</strong></div></div><div class="vpscs-sw-list"><h3>软件用户在线状态</h3><div data-users></div><div class="vpscs-sw-pager"><button class="vpscs-sw-btn" data-user-prev>上一页</button><span data-user-page>1 / 1</span><button class="vpscs-sw-btn" data-user-next>下一页</button></div></div></section></div>';
     document.body.appendChild(page); form = page.querySelector('[data-form]');
-    form.addEventListener('submit', function (event) { event.preventDefault(); saveConfig(false); });
+    form.addEventListener('submit', function (event) { event.preventDefault(); saveConfig(false, form.querySelector('button[type="submit"]')); });
     page.addEventListener('click', function (event) {
       var button = event.target.closest('button'); if (!button) return; event.preventDefault();
       if (button.matches('[data-refresh]')) { Promise.all([loadConfig(), loadTelemetry()]); }
-      if (button.matches('[data-publish-popup]')) saveConfig(true);
+      if (button.matches('[data-save-section]')) saveConfig(false, button);
+      if (button.matches('[data-publish-popup]')) saveConfig(true, button);
       if (button.matches('[data-user-prev]')) { userPage = Math.max(1, userPage - 1); renderTelemetry(); }
       if (button.matches('[data-user-next]')) { userPage++; renderTelemetry(); }
     });
