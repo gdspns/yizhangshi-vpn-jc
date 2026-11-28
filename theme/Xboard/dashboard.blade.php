@@ -132,7 +132,7 @@
   .vpscs-shelf .vl-plan { min-height: 0; }
   .vpscs-shelf .vl-plan-benefits { min-height: 120px; }
   body.vpscs-plan-page .vpscs-native-heading,
-  body.vpscs-plan-page #app .n-base-segmented { display: none !important; }
+  body.vpscs-plan-page #app .vpscs-native-filter { display: none !important; }
   @media (max-width: 1000px) { .vpscs-shelf-group .vl-plans { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   @media (max-width: 680px) {
     .vpscs-shelf { padding: 4px 14px 34px; }
@@ -449,12 +449,19 @@
       function planShelfMode() { return /^#\/plan\/?$/.test(location.hash); }
       function planDetailMode() { return /^#\/plan\/\d+/.test(location.hash); }
 
-      // 隐藏应用自带的标题与分段筛选器：版式改由与着陆页一致的区块接管。
+      // 隐藏应用自带的标题与筛选器：版式改由与着陆页一致的区块接管。
       function tagPlanChrome() {
         if (!planShelfMode()) return;
         Array.prototype.slice.call(document.querySelectorAll('#app h2')).forEach(function (heading) {
           if (heading.classList.contains('vl-h2') || heading.closest('.vpscs-shelf')) return;
           if (heading.textContent.replace(/\s+/g, '').indexOf('选择最适合') === 0) heading.classList.add('vpscs-native-heading');
+        });
+        // 原生筛选是 Naive UI 的 radio 组（全部 / 按周期 / 按流量），按标签定位后整组隐藏。
+        Array.prototype.slice.call(document.querySelectorAll('#app label, #app .n-radio__label')).forEach(function (label) {
+          var text = label.textContent.replace(/\s+/g, '');
+          if (text !== '按周期' && text !== '按流量') return;
+          var group = label.closest('.n-radio-group') || label.closest('[role="radiogroup"]');
+          if (group) group.classList.add('vpscs-native-filter');
         });
       }
 

@@ -420,8 +420,12 @@
       // Users who bought several plans get independent subscription rows.
       // The list itself only prints the primary plan, so add a compact picker
       // to that cell; the selected id is what the mutation hooks below target.
+      function adminToken() {
+        try { return JSON.parse(localStorage.getItem('XBOARD_ACCESS_TOKEN') || '{}').value || ''; } catch (_) { return ''; }
+      }
+
       function renderRowSubscriptionPickers() {
-        if (!adminUsers.length) return;
+        if (!adminUsers.length) { loadAdminUsers(adminToken()); return; }
         // The admin page can hold more than one table (sticky header copies,
         // statistics panels).  Pick the one whose head actually has both an
         // email and a subscription column.
@@ -478,6 +482,21 @@
           wrap.appendChild(select);
           cell.appendChild(wrap);
         });
+      }
+
+      // The admin list sometimes renders before our capture hooks see the
+      // response (fetch adapter, cloned body, route rebuilt...).  Fetch the same
+      // endpoint ourselves with the stored admin token instead of relying on it.
+      var userListFetchedAt = 0;
+      function loadAdminUsers(token) {
+        if (adminUsers.length || Date.now() - userListFetchedAt < 8000) return;
+        userListFetchedAt = Date.now();
+        var secure = (window.settings && window.settings.secure_path) || '';
+        if (!token || !secure) return;
+        nativeFetch('/api/v2/' + secure + '/user/fetch?current=1&pageSize=100', {
+          headers: { Authorization: token, 'Content-Language': 'zh-CN' },
+          credentials: 'same-origin',
+        }).then(function (response) { return response.text(); }).then(applyUserListText).catch(function () {});
       }
 
       function refreshAdminEnhancements() {
