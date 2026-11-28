@@ -8,8 +8,17 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/theme/{{$theme}}/assets/xigua.css?v={{$version}}-layout7" />
-  <script defer src="/theme/{{$theme}}/assets/xigua.js?v={{$version}}-layout7"></script>
+@php
+  // 用静态资源的 mtime+size 做指纹：每次构建产物变化，URL 就变，CDN 与浏览器缓存自动失效。
+  // 不能用 $version：同一天多次部署 getCurrentVersion() 不会变，Cloudflare 会一直回旧文件。
+  $assetDir = public_path('theme/' . $theme . '/assets/');
+  $assetSig = @filemtime($assetDir . 'umi.js') . '|' . @filesize($assetDir . 'umi.js')
+      . '|' . @filemtime($assetDir . 'xigua.css') . '|' . @filesize($assetDir . 'xigua.css')
+      . '|' . @filemtime($assetDir . 'xigua.js') . '|' . @filesize($assetDir . 'xigua.js');
+  $assetVer = substr(md5((string) $assetSig), 0, 10);
+@endphp
+  <link rel="stylesheet" href="/theme/{{$theme}}/assets/xigua.css?v={{$assetVer}}" />
+  <script defer src="/theme/{{$theme}}/assets/xigua.js?v={{$assetVer}}"></script>
 </head>
 <style>
   .markdown-body { white-space: pre-line; }
@@ -176,7 +185,7 @@
         var script = document.createElement('script');
         script.type = 'module';
         script.crossOrigin = 'anonymous';
-        script.src = '/theme/{{$theme}}/assets/umi.js';
+        script.src = '/theme/{{$theme}}/assets/umi.js?v={{$assetVer}}';
         document.head.appendChild(script);
       }
       var nativeFetch = window.fetch.bind(window);
