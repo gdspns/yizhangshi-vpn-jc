@@ -789,8 +789,7 @@
         actions.className = 'vpscs-sub-line vpscs-sub-edit';
         // 只有一条订阅时切换没有意义，直接不给按钮。
         var switchButton = profiles.length > 1
-          ? '<button type="button" class="is-primary" data-act="switch"'
-            + (isCurrent ? ' disabled title="这条已经是当前显示的订阅"' : ' title="切换后列表的订阅 / 流量 / 到期时间都跟着这一条显示"') + '>'
+          ? '<button type="button" data-act="switch"' + (isCurrent ? ' disabled title="这条已经是当前显示的订阅"' : ' class="is-primary" title="切换后列表的订阅 / 流量 / 到期时间都跟着这一条显示"') + '>'
             + (isCurrent ? '当前订阅' : '切换订阅') + '</button>'
           : '';
         actions.innerHTML = switchButton + '<button type="button" class="is-danger" data-act="delete">删除此订阅</button>';
@@ -931,19 +930,28 @@
       // The list itself only prints the primary plan, so add a compact picker
       // to that cell; the selected id is what the mutation hooks below target.
       // 后台实际把登录票据放在 VUE_NAIVE_ACCESS_TOKEN（值是 {value: 'xx|yy'}）；
-      // 早期版本叫 XBOARD_ACCESS_TOKEN，两个都认，免得换个版本就读不到。
+      // 早期版本叫 XBOARD_ACCESS_TOKEN。两个键可能同时存在，而且**旧的那个已经失效**
+      // （带着它请求一律 403 Unauthorized），所以不能写死顺序，取最近写入、没过期的那条。
       function adminToken() {
-        var keys = ['VUE_NAIVE_ACCESS_TOKEN', 'XBOARD_ACCESS_TOKEN'];
+        var keys = ['XBOARD_ACCESS_TOKEN', 'VUE_NAIVE_ACCESS_TOKEN'];
+        var best = '';
+        var bestTime = -1;
         for (var i = 0; i < keys.length; i += 1) {
           var raw = localStorage.getItem(keys[i]);
           if (!raw) continue;
           var parsed = raw;
           try { parsed = JSON.parse(raw); } catch (_) {}
-          if (parsed && typeof parsed === 'object') parsed = parsed.value || parsed.token || '';
+          var stamp = 0;
+          if (parsed && typeof parsed === 'object') {
+            stamp = Number(parsed.time || 0);
+            if (parsed.expire && Number(parsed.expire) < Date.now()) continue;
+            parsed = parsed.value || parsed.token || '';
+          }
           var value = String(parsed || '').trim();
-          if (value) return value;
+          if (!value) continue;
+          if (stamp > bestTime) { bestTime = stamp; best = value; }
         }
-        return '';
+        return best;
       }
       // sanctum 只认 `Authorization: Bearer <token>`，裸 token 一律 401。
       function authHeader(token) {
