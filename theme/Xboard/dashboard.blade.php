@@ -150,7 +150,7 @@
   .vpscs-period-row[class~="border-primary"] { background: #16241c !important; border-color: #4fbd80 !important; }
   .vpscs-period-row[class~="border-primary"]::before { content: '✓'; display: grid; place-items: center; color: #06100a; border-color: #4fbd80; background: #4fbd80; font-size: 12px; font-weight: 900; line-height: 1; }
   .vpscs-period-row > div { min-width: 0; white-space: nowrap; }
-  @media (max-width: 680px) { .vpscs-period-top .n-card__content { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 680px) { .vpscs-period-top .n-card__content { grid-template-columns: 1fr; } }
   @media (max-width: 820px) {
     .vl-hero-in { grid-template-columns: 1fr; text-align: center; }
     .vl-lead { margin-inline: auto; }
