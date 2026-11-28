@@ -164,33 +164,40 @@ class UserController extends Controller
     public function getSubscriptions(Request $request)
     {
         $owner = User::findOrFail($request->user()->id);
-        $subscriptions = User::with('plan')
+        $all = User::with('plan')
             ->where(function ($query) use ($owner) {
                 $query->where('id', $owner->id)->whereNotNull('plan_id')
                     ->orWhere('owner_user_id', $owner->id);
             })
             ->orderBy('id')
-            ->get()
+            ->get();
+
+        // 备注号（seq）：只给仍然有效的订阅编号（1、2、3…），后台用户管理
+        // 用的是同一套规则，用户端「订阅2」就是后台的「订阅2」。
+        $now = time();
+        $seq = 0;
+        $subscriptions = [];
+        foreach ($all as $subscription) {
+            $expiredAt = (int) $subscription->expired_at;
             // 过期订阅不再下发：到期即从「我的订阅」消失，不保留历史订阅。
-            ->filter(function (User $subscription) {
-                $expiredAt = (int) $subscription->expired_at;
-                return $expiredAt === 0 || $expiredAt > time();
-            })
-            ->values()
-            ->map(function (User $subscription) {
-                return [
-                    'id' => $subscription->id,
-                    'name' => $subscription->subscription_name ?: optional($subscription->plan)->name,
-                    'plan' => $subscription->plan,
-                    'subscribe_url' => Helper::getSubscribeUrl(trim($subscription->token)),
-                    'expired_at' => $subscription->expired_at,
-                    'u' => $subscription->u,
-                    'd' => $subscription->d,
-                    'transfer_enable' => $subscription->transfer_enable,
-                    'device_limit' => $subscription->device_limit,
-                    'speed_limit' => $subscription->speed_limit,
-                ];
-            });
+            if ($expiredAt !== 0 && $expiredAt <= $now) {
+                continue;
+            }
+            $seq += 1;
+            $subscriptions[] = [
+                'id' => $subscription->id,
+                'seq' => $seq,
+                'name' => $subscription->subscription_name ?: optional($subscription->plan)->name,
+                'plan' => $subscription->plan,
+                'subscribe_url' => Helper::getSubscribeUrl(trim($subscription->token)),
+                'expired_at' => $subscription->expired_at,
+                'u' => $subscription->u,
+                'd' => $subscription->d,
+                'transfer_enable' => $subscription->transfer_enable,
+                'device_limit' => $subscription->device_limit,
+                'speed_limit' => $subscription->speed_limit,
+            ];
+        }
         return $this->success($subscriptions);
     }
 

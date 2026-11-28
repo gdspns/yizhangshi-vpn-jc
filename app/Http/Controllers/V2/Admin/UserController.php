@@ -227,10 +227,37 @@ class UserController extends Controller
         $user['commission_balance'] = $user['commission_balance'] / 100;
         $user['subscribe_url'] = Helper::getSubscribeUrl($user['token']);
         $user['subscription_count'] = ($user['subscriptions_count'] ?? 0) + ($user['plan_id'] ? 1 : 0);
-        $profiles = collect([$model])->when($model->plan_id === null, fn ($items) => $items->slice(1))
-            ->concat($model->subscriptions)
-            ->map(fn (User $profile) => [
+        $profiles = self::subscriptionProfiles($model);
+        unset($user['subscriptions']);
+        $user['subscription_profiles'] = $profiles;
+        return HookManager::filter('admin.user.transform', $user, $model);
+    }
+
+    /**
+     * 订阅档案（含备注号 seq）。
+     *
+     * seq 只给仍然有效的订阅编号（1、2、3…），和用户端「我的订阅」完全一致，
+     * 名字相同的订阅也能一眼分清是哪一条；已过期的订阅不再返回，到期即从
+     * 后台选择框和用户端一起消失。
+     */
+    private static function subscriptionProfiles(User $model): array
+    {
+        $all = collect($model->plan_id === null ? [] : [$model])
+            ->concat($model->subscriptions->sortBy('id'))
+            ->values();
+
+        $now = time();
+        $seq = 0;
+        $profiles = [];
+        foreach ($all as $profile) {
+            $expiredAt = (int) $profile->expired_at;
+            if ($expiredAt !== 0 && $expiredAt <= $now) {
+                continue;
+            }
+            $seq += 1;
+            $profiles[] = [
                 'id' => $profile->id,
+                'seq' => $seq,
                 'name' => $profile->subscription_name ?: optional($profile->plan)->name,
                 'plan' => $profile->plan,
                 'subscribe_url' => Helper::getSubscribeUrl(trim($profile->token)),
@@ -238,10 +265,9 @@ class UserController extends Controller
                 'u' => $profile->u,
                 'd' => $profile->d,
                 'transfer_enable' => $profile->transfer_enable,
-            ])->values();
-        unset($user['subscriptions']);
-        $user['subscription_profiles'] = $profiles;
-        return HookManager::filter('admin.user.transform', $user, $model);
+            ];
+        }
+        return $profiles;
     }
 
     public function getUserInfoById(Request $request)
@@ -253,19 +279,7 @@ class UserController extends Controller
         ]);
         $user = User::whereNull('owner_user_id')->findOrFail($request->input('id'))
             ->load(['invite_user', 'plan', 'subscriptions.plan']);
-        $profiles = collect([$user])->when($user->plan_id === null, fn ($items) => $items->slice(1))
-            ->concat($user->subscriptions)
-            ->map(fn (User $profile) => [
-                'id' => $profile->id,
-                'name' => $profile->subscription_name ?: optional($profile->plan)->name,
-                'plan' => $profile->plan,
-                'subscribe_url' => Helper::getSubscribeUrl(trim($profile->token)),
-                'expired_at' => $profile->expired_at,
-                'u' => $profile->u,
-                'd' => $profile->d,
-                'transfer_enable' => $profile->transfer_enable,
-            ])->values();
-        $user->setAttribute('subscription_profiles', $profiles);
+        $user->setAttribute('subscription_profiles', self::subscriptionProfiles($user));
         $user = HookManager::filter('admin.user.detail', $user, $request);
         return $this->success($user);
     }

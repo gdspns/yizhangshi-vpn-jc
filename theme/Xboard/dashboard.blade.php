@@ -672,8 +672,13 @@
           var total = Number(item.transfer_enable || 0);
           var expires = item.expired_at ? new Date(Number(item.expired_at) * 1000).toLocaleDateString() : '长期有效';
           var kind = subscriptionKind(item);
+          // 备注号：后端按 id 升序算好的 seq，和后台用户管理里的「订阅N」一致，
+          // 名字相同的订阅也能一眼分清是哪一条。
+          var no = Number(item.seq);
+          if (!isFinite(no) || no <= 0) no = index + 1;
           return '<section class="vpscs-subscription-card">'
-            + '<div class="vpscs-subscription-head"><span class="vpscs-subscription-name">' + escapeHtml(item.name || '订阅') + '</span>'
+            + '<div class="vpscs-subscription-head"><span class="vpscs-subscription-no">订阅' + no + '</span>'
+            + '<span class="vpscs-subscription-name">' + escapeHtml(item.name || '订阅') + '</span>'
             + '<span class="vpscs-subscription-tag is-' + kind.key + '">' + kind.label + '</span></div>'
             + '<p class="vpscs-subscription-meta">到期：' + expires + ' · 已用 ' + (used / 1073741824).toFixed(2) + ' GB / ' + (total / 1073741824).toFixed(2) + ' GB</p>'
             + '<div class="vpscs-subscription-url">' + escapeHtml(item.subscribe_url) + '</div>'

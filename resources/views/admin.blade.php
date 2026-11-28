@@ -350,7 +350,8 @@
             profiles = payload.data && payload.data.subscription_profiles || [];
             refreshAdminEnhancements();
           }).catch(function () {});
-          if (/user\/fetch/i.test(url)) response.clone().text().then(applyUserListText).catch(function () {});
+          if (/user\/fetch/i.test(url)) { response.clone().text().then(applyUserListText).catch(function () {}); }
+          else if (/\/user\/(update|destroy|resetSecret)\b|\/order\//i.test(url)) { scheduleUserListRefresh(); }
           return response;
         });
       };
@@ -370,7 +371,11 @@
         }
         this.__vpscsUrl = nextUrl;
         this.addEventListener('load', function () {
-          if (!/\/user\/fetch/i.test(this.__vpscsUrl || '')) return;
+          var url = this.__vpscsUrl || '';
+          if (!/\/user\/fetch/i.test(url)) {
+            if (/\/user\/(update|destroy|resetSecret)\b|\/user\/resetSecret|\/order\//i.test(url)) scheduleUserListRefresh();
+            return;
+          }
           // axios may request responseType=json; reading responseText then throws
           // (InvalidStateError), which used to leave the table without data.
           try {
@@ -393,16 +398,40 @@
         }
         return nativeSend.call(this, body);
       };
+      // 备注号：后端按 id 升序算好的 seq，用户端「我的订阅」用同一个数字。
+      function profileNo(item, index) {
+        var no = Number(item && item.seq);
+        return isFinite(no) && no > 0 ? no : index + 1;
+      }
+      function profileDate(item) {
+        return item && item.expired_at ? new Date(Number(item.expired_at) * 1000).toLocaleDateString() : '长期';
+      }
+      function profileLabel(item, index) {
+        return '订阅' + profileNo(item, index) + ' · ' + (item.name || '订阅') + ' · ' + profileDate(item);
+      }
+      // 过期订阅不再出现在任何选择框里（后端已过滤，这里兜底防止旧缓存）。
+      function liveProfiles(items) {
+        var now = Date.now();
+        return (items || []).filter(function (item) {
+          var expiredAt = Number(item && item.expired_at);
+          return !(expiredAt > 0 && expiredAt * 1000 <= now);
+        });
+      }
       function subscriptionSignature(items) {
-        return (items || []).map(function (item) { return item.id + ':' + item.expired_at + ':' + item.transfer_enable; }).join(',');
+        return (items || []).map(function (item) { return [item.id, profileNo(item, 0), item.name, item.expired_at, item.transfer_enable, item.u, item.d].join(':'); }).join(',');
       }
       function renderSubscriptionPicker() {
         var dialog = Array.from(document.querySelectorAll('[role="dialog"]')).find(function (item) { return /用户|订阅/.test(item.textContent); });
         if (!dialog) return;
         var emailInput = Array.from(dialog.querySelectorAll('input')).find(function (input) { return /@/.test(input.value || ''); });
         var activeUser = emailInput && adminUsers.find(function (item) { return item.email === emailInput.value; });
-        if (activeUser && Array.isArray(activeUser.subscription_profiles)) profiles = activeUser.subscription_profiles;
-        if (!profiles.length) return;
+        if (activeUser && Array.isArray(activeUser.subscription_profiles)) profiles = liveProfiles(activeUser.subscription_profiles);
+        else profiles = liveProfiles(profiles);
+        if (!profiles.length) {
+          var stale = dialog.querySelector('.vpscs-admin-subscriptions');
+          if (stale) stale.remove();
+          return;
+        }
         var box = dialog.querySelector('.vpscs-admin-subscriptions');
         // Rebuilding on every mutation used to reset the selection (and could
         // loop forever because innerHTML itself is a mutation).  Rebuild only
@@ -411,9 +440,9 @@
         if (box && box.dataset.signature === signature) return;
         if (!box) { box = document.createElement('section'); box.className = 'vpscs-admin-subscriptions'; var body = dialog.querySelector('.el-dialog__body') || dialog; body.prepend(box); }
         box.dataset.signature = signature;
-        box.innerHTML = '<strong>订阅（共 ' + profiles.length + ' 条链接）</strong><select>' + profiles.map(function (item, index) { return '<option value="' + index + '">' + (item.name || '订阅 ' + (index + 1)) + '</option>'; }).join('') + '</select><div class="vpscs-admin-subscription-detail"></div>';
+        box.innerHTML = '<strong>订阅（共 ' + profiles.length + ' 条链接）</strong><select>' + profiles.map(function (item, index) { return '<option value="' + index + '">' + profileLabel(item, index) + '</option>'; }).join('') + '</select><div class="vpscs-admin-subscription-detail"></div>';
         var select = box.querySelector('select');
-        function show() { var item = profiles[Number(select.value)] || {}; sessionStorage.setItem('vpscs_admin_subscription_id', item.id || ''); var used = (Number(item.u || 0) + Number(item.d || 0)) / 1073741824; var total = Number(item.transfer_enable || 0) / 1073741824; box.querySelector('.vpscs-admin-subscription-detail').innerHTML = '<div>当前操作目标：' + (item.name || '订阅') + '（ID ' + item.id + '）</div><div>套餐：' + (item.plan && item.plan.name || '-') + '</div><div>流量：' + used.toFixed(2) + ' / ' + total.toFixed(2) + ' GB</div><div>到期：' + (item.expired_at ? new Date(Number(item.expired_at) * 1000).toLocaleDateString() : '长期有效') + '</div><input readonly value="' + (item.subscribe_url || '') + '">'; }
+        function show() { var item = profiles[Number(select.value)] || {}; sessionStorage.setItem('vpscs_admin_subscription_id', item.id || ''); var used = (Number(item.u || 0) + Number(item.d || 0)) / 1073741824; var total = Number(item.transfer_enable || 0) / 1073741824; box.querySelector('.vpscs-admin-subscription-detail').innerHTML = '<div>当前操作目标：订阅' + profileNo(item, Number(select.value)) + '（' + (item.name || '订阅') + '，ID ' + item.id + '）</div><div>套餐：' + (item.plan && item.plan.name || '-') + '</div><div>流量：' + used.toFixed(2) + ' / ' + total.toFixed(2) + ' GB</div><div>到期：' + (item.expired_at ? new Date(Number(item.expired_at) * 1000).toLocaleDateString() : '长期有效') + '</div><input readonly value="' + (item.subscribe_url || '') + '">'; }
         select.addEventListener('change', show); show();
       }
 
@@ -460,8 +489,7 @@
           var emailMatch = ((emailCell && emailCell.textContent) || row.textContent || '').match(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/);
           if (!emailMatch) return;
           var user = adminUsers.find(function (item) { return item.email === emailMatch[0]; });
-          var items = user && Array.isArray(user.subscription_profiles) ? user.subscription_profiles : [];
-          if (!items.length) return;
+          var items = liveProfiles(user && Array.isArray(user.subscription_profiles) ? user.subscription_profiles : []);
           // Row actions (reset password, edit, delete) must target the row the
           // administrator clicked, otherwise a previously selected subscription
           // from another user would be rewritten into the request.
@@ -473,25 +501,48 @@
               if (id) sessionStorage.setItem('vpscs_admin_subscription_id', id);
             }, true);
           }
-          if (items.length < 2 || cell.querySelector('.vpscs-row-sub')) return;
+          var existing = cell.querySelector('.vpscs-row-sub');
+          if (items.length < 2) { if (existing) existing.remove(); return; }
+          var signature = subscriptionSignature(items);
+          // 到期时间/流量被改过以后，选择框里的备注号和日期要跟着变，不能等刷新页面。
+          if (existing) {
+            if (existing.dataset.signature === signature) return;
+            fillRowPicker(existing, items, signature);
+            return;
+          }
           var wrap = document.createElement('div');
           wrap.className = 'vpscs-row-sub';
-          var select = document.createElement('select');
-          select.title = '选择要管理的订阅（共 ' + items.length + ' 条）';
-          items.forEach(function (item, i) {
-            var option = document.createElement('option');
-            option.value = String(item.id || '');
-            option.textContent = (item.name || ('订阅 ' + (i + 1))) + ' #' + (item.id || '') + ' · ' + (item.expired_at ? new Date(Number(item.expired_at) * 1000).toLocaleDateString() : '长期');
-            select.appendChild(option);
-          });
-          select.value = String((items[0] || {}).id || '');
-          select.addEventListener('change', function () {
-            sessionStorage.setItem('vpscs_admin_subscription_id', select.value);
-            select.classList.add('is-picked');
-          });
-          wrap.appendChild(select);
+          fillRowPicker(wrap, items, signature);
           cell.appendChild(wrap);
         });
+      }
+
+      // 复用同一个 div：只重写选项，保留当前选择。
+      function fillRowPicker(wrap, items, signature) {
+        var previous = wrap.querySelector('select');
+        var keep = previous ? previous.value : '';
+        var select = document.createElement('select');
+        select.title = '选择要管理的订阅（共 ' + items.length + ' 条）';
+        items.forEach(function (item, i) {
+          var option = document.createElement('option');
+          option.value = String(item.id || '');
+          option.textContent = profileLabel(item, i);
+          select.appendChild(option);
+        });
+        var keepAlive = items.some(function (item) { return String(item.id) === keep; });
+        select.value = keepAlive ? keep : String((items[0] || {}).id || '');
+        select.classList.add('is-picked');
+        select.addEventListener('change', function () {
+          sessionStorage.setItem('vpscs_admin_subscription_id', select.value);
+        });
+        wrap.dataset.signature = signature;
+        wrap.replaceChildren(select);
+        // 之前选中的订阅到期被隐藏了：把操作目标挪到第一条，别让后续请求打到过期档案上。
+        var previousIds = previous ? Array.prototype.map.call(previous.options, function (option) { return option.value; }) : [];
+        var stored = sessionStorage.getItem('vpscs_admin_subscription_id');
+        if (!keepAlive && previousIds.indexOf(keep) !== -1 && stored === keep) {
+          sessionStorage.setItem('vpscs_admin_subscription_id', select.value);
+        }
       }
 
       // The admin list sometimes renders before our capture hooks see the
@@ -499,7 +550,7 @@
       // endpoint ourselves with the stored admin token instead of relying on it.
       var userListFetchedAt = 0;
       function loadAdminUsers(token) {
-        if (adminUsers.length || Date.now() - userListFetchedAt < 8000) return;
+        if (adminUsers.length || Date.now() - userListFetchedAt < 2000) return;
         userListFetchedAt = Date.now();
         var secure = (window.settings && window.settings.secure_path) || '';
         if (!token || !secure) return;
@@ -507,6 +558,19 @@
           headers: { Authorization: token, 'Content-Language': 'zh-CN' },
           credentials: 'same-origin',
         }).then(function (response) { return response.text(); }).then(applyUserListText).catch(function () {});
+      }
+
+      // 管理员保存过订阅以后（改到期/流量/删订阅），重新拉一次列表：
+      // 备注号和日期立刻跟着变，过期的订阅也会自动从选择框里消失。
+      var userListRefreshTimer = null;
+      function scheduleUserListRefresh() {
+        if (userListRefreshTimer) clearTimeout(userListRefreshTimer);
+        userListRefreshTimer = setTimeout(function () {
+          userListRefreshTimer = null;
+          adminUsers = [];
+          userListFetchedAt = 0;
+          loadAdminUsers(adminToken());
+        }, 600);
       }
 
       function refreshAdminEnhancements() {
