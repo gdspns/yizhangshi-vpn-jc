@@ -425,7 +425,11 @@
       }
 
       function renderRowSubscriptionPickers() {
-        if (!adminUsers.length) { loadAdminUsers(adminToken()); return; }
+        if (!adminUsers.length) {
+          if (!document.querySelector('#root table')) return;
+          loadAdminUsers(adminToken());
+          return;
+        }
         // The admin page can hold more than one table (sticky header copies,
         // statistics panels).  Pick the one whose head actually has both an
         // email and a subscription column.
@@ -477,7 +481,7 @@
           items.forEach(function (item, i) {
             var option = document.createElement('option');
             option.value = String(item.id || '');
-            option.textContent = (item.name || ('订阅 ' + (i + 1))) + ' · ' + (item.expired_at ? new Date(Number(item.expired_at) * 1000).toLocaleDateString() : '长期');
+            option.textContent = (item.name || ('订阅 ' + (i + 1))) + ' #' + (item.id || '') + ' · ' + (item.expired_at ? new Date(Number(item.expired_at) * 1000).toLocaleDateString() : '长期');
             select.appendChild(option);
           });
           select.value = String((items[0] || {}).id || '');
