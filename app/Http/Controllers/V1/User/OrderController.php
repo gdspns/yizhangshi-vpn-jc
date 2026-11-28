@@ -27,6 +27,9 @@ class OrderController extends Controller
         ]);
         $orders = Order::with('plan')
             ->where('user_id', $request->user()->id)
+            // 余额充值订单只在钱包弹窗里展示进度，不出现在订阅订单列表里
+            //（它不绑定套餐，列出来只会让人困惑）。
+            ->where('type', '!=', Order::TYPE_RECHARGE)
             ->when($request->input('status') !== null, function ($query) use ($request) {
                 $query->where('status', $request->input('status'));
             })

@@ -9,6 +9,7 @@ use App\Http\Controllers\V1\User\KnowledgeController;
 use App\Http\Controllers\V1\User\NoticeController;
 use App\Http\Controllers\V1\User\OrderController;
 use App\Http\Controllers\V1\User\PlanController;
+use App\Http\Controllers\V1\User\RechargeController;
 use App\Http\Controllers\V1\User\ServerController;
 use App\Http\Controllers\V1\User\StatController;
 use App\Http\Controllers\V1\User\TelegramController;
@@ -45,6 +46,9 @@ class UserRoute
             $router->get('/order/fetch', [OrderController::class, 'fetch']);
             $router->get('/order/getPaymentMethod', [OrderController::class, 'getPaymentMethod']);
             $router->post('/order/cancel', [OrderController::class, 'cancel']);
+            // 余额充值
+            $router->post('/recharge/create', [RechargeController::class, 'create']);
+            $router->post('/recharge/checkout', [RechargeController::class, 'checkout']);
             // Plan
             $router->get('/plan/fetch', [PlanController::class, 'fetch']);
             // Invite

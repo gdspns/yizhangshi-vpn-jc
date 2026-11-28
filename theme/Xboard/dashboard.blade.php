@@ -963,6 +963,365 @@
       }, 60000);
     })();
   </script>
+
+  {{-- 钱包充值：金额输入 + 固定金额 + 已接入支付通道，全部在居中弹窗内完成 --}}
+  <style>
+    .vpscs-rc-btn { display:inline-flex; align-items:center; gap:6px; min-height:32px; padding:0 16px; border:0; border-radius:8px; background:#7c3aed; color:#fff; font-size:14px; font-weight:700; cursor:pointer; box-shadow:0 6px 16px rgba(124,92,237,.35); }
+    .vpscs-rc-btn:hover { background:#6d28d9; }
+    .vpscs-rc-mask { position:fixed; inset:0; z-index:9999; display:flex; align-items:center; justify-content:center; padding:20px; background:rgba(0,0,0,.55); backdrop-filter:blur(3px); }
+    .vpscs-rc-modal { position:relative; width:min(420px,100%); max-height:86vh; overflow:auto; border-radius:16px; background:#1c1d24; color:#e8eaf2; border:1px solid #333542; box-shadow:0 30px 80px rgba(0,0,0,.5); font-family:Inter,system-ui,sans-serif; }
+    .vpscs-rc-modal::-webkit-scrollbar { width:6px }
+    .vpscs-rc-modal::-webkit-scrollbar-thumb { background:#3d3f4e; border-radius:3px }
+    .vpscs-rc-close { position:absolute; top:12px; right:14px; width:30px; height:30px; border:0; border-radius:8px; background:transparent; color:#9aa0b4; font-size:20px; line-height:1; cursor:pointer; }
+    .vpscs-rc-close:hover { background:#2a2c36; color:#fff; }
+    .vpscs-rc-head { padding:20px 22px 0; font-size:18px; font-weight:800; }
+    .vpscs-rc-body { padding:16px 22px 22px; }
+    .vpscs-rc-balance { margin:2px 0 14px; font-size:13px; color:#9aa0b4; }
+    .vpscs-rc-amount { width:100%; box-sizing:border-box; padding:13px 14px; border:1px solid #3d3f4e; border-radius:10px; background:#24252e; color:#fff; font-size:22px; font-weight:700; text-align:center; outline:none; }
+    .vpscs-rc-amount:focus { border-color:#7c3aed; }
+    .vpscs-rc-fixed { display:flex; gap:10px; margin-top:14px; }
+    .vpscs-rc-fixed button { flex:1; min-height:42px; border:1px solid #3d3f4e; border-radius:10px; background:#24252e; color:#d6d9e6; font-size:15px; font-weight:700; cursor:pointer; }
+    .vpscs-rc-fixed button:hover { border-color:#7c3aed; color:#fff; }
+    .vpscs-rc-fixed button.is-active { border-color:#7c3aed; background:#31224d; color:#fff; }
+    .vpscs-rc-go { width:100%; min-height:46px; margin-top:18px; border:0; border-radius:10px; background:#7c3aed; color:#fff; font-size:15px; font-weight:800; cursor:pointer; }
+    .vpscs-rc-go:hover { background:#6d28d9; }
+    .vpscs-rc-go:disabled { opacity:.55; cursor:default; }
+    .vpscs-rc-back { width:100%; min-height:40px; margin-top:10px; border:1px solid #3d3f4e; border-radius:10px; background:transparent; color:#b9bdcc; font-size:14px; cursor:pointer; }
+    .vpscs-rc-back:hover { color:#fff; border-color:#5a5d6e; }
+    .vpscs-rc-err { margin-top:12px; padding:10px 12px; border-radius:10px; background:#3a1d24; color:#fda4af; font-size:13px; display:none; }
+    .vpscs-rc-err:empty { display:none }
+    .vpscs-rc-method { display:flex; align-items:center; gap:12px; width:100%; box-sizing:border-box; padding:13px 14px; margin-top:10px; border:1px solid #3d3f4e; border-radius:12px; background:#24252e; color:#e8eaf2; text-align:left; cursor:pointer; }
+    .vpscs-rc-method:hover { border-color:#5a5d6e; }
+    .vpscs-rc-method.is-active { border-color:#7c3aed; background:#31224d; }
+    .vpscs-rc-method img { width:26px; height:26px; border-radius:6px; object-fit:contain; background:#fff; }
+    .vpscs-rc-method .vpscs-rc-m-name { flex:1; font-size:15px; font-weight:700; }
+    .vpscs-rc-method .vpscs-rc-m-fee { font-size:12px; color:#9aa0b4; }
+    .vpscs-rc-qr { margin:6px auto 0; width:240px; padding:12px; border-radius:14px; background:#fff; }
+    .vpscs-rc-qr svg { display:block; width:100%; height:auto; }
+    .vpscs-rc-qr-tip { margin-top:12px; text-align:center; font-size:13px; color:#9aa0b4; }
+    .vpscs-rc-pay-amount { margin-top:8px; text-align:center; font-size:26px; font-weight:800; color:#fff; }
+    .vpscs-rc-open-link { display:block; margin:14px auto 0; text-align:center; color:#a78bfa; font-size:13px; overflow-wrap:anywhere; }
+    .vpscs-rc-done { text-align:center; padding:8px 0 4px; }
+    .vpscs-rc-done .vpscs-rc-icon { width:64px; height:64px; margin:0 auto 14px; border-radius:50%; background:#12341f; color:#4ade80; font-size:34px; line-height:64px; }
+    .vpscs-rc-done .vpscs-rc-done-title { font-size:18px; font-weight:800; color:#fff; }
+    .vpscs-rc-done .vpscs-rc-done-sub { margin-top:8px; font-size:13px; color:#9aa0b4; }
+  </style>
+  <script>
+  (function () {
+    'use strict';
+    var FIXED_AMOUNTS = [100, 200, 500, 1000];
+
+    // 后台实际把登录票据放在 VUE_NAIVE_ACCESS_TOKEN（JSON {value:"xx|yy"}）；
+    // 用户中心接口（/api/v1/user/*）用裸 token，不带 Bearer 前缀。
+    function token() {
+      var raw = '';
+      try {
+        for (var i = 0; i < localStorage.length; i += 1) {
+          var key = localStorage.key(i) || '';
+          if (key.toUpperCase() === 'VUE_NAIVE_ACCESS_TOKEN') { raw = localStorage.getItem(key) || ''; break; }
+        }
+      } catch (_) {}
+      if (!raw) raw = localStorage.getItem('access_token') || '';
+      var t = raw;
+      try {
+        var saved = JSON.parse(raw);
+        if (saved && typeof saved === 'object') {
+          if (saved.expire && Number(saved.expire) <= Date.now()) return '';
+          t = typeof saved.value === 'string' ? saved.value : '';
+        }
+      } catch (_) {}
+      return typeof t === 'string' ? t : '';
+    }
+
+    function api(path, body) {
+      var headers = { 'Accept': 'application/json', 'Content-Type': 'application/json' };
+      var t = token();
+      if (t) headers.Authorization = t;
+      return fetch('/api/v1/user/' + path, {
+        method: body ? 'POST' : 'GET',
+        headers: headers,
+        credentials: 'same-origin',
+        body: body ? JSON.stringify(body) : undefined
+      }).then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (j) {
+          if (!r.ok || (j && j.status === 'fail')) {
+            throw new Error((j && j.message) || ('请求失败（HTTP ' + r.status + '）'));
+          }
+          return j ? (j.data !== undefined ? j.data : j) : null;
+        });
+      });
+    }
+
+    function fmtAmount(fen) {
+      return '¥' + (Number(fen || 0) / 100).toFixed(2);
+    }
+
+    // ---- 弹窗 ----
+    var modal = null;
+    var state = { amount: 0, tradeNo: '', payAmount: 0, method: null, timer: null, busy: false };
+
+    function destroy() {
+      if (state.timer) { clearInterval(state.timer); state.timer = null; }
+      // 关掉弹窗（或中途返回）时把还没付的充值订单取消掉，
+      // 否则它会一直挡着下一次充值（「有未完成的订单」）。
+      if (state.tradeNo && modal) {
+        api('order/cancel', { trade_no: state.tradeNo }).catch(function () {});
+      }
+      if (modal) { modal.remove(); modal = null; }
+    }
+
+    function showError(message) {
+      var node = modal && modal.querySelector('[data-rc-err]');
+      if (node) node.textContent = message || '';
+    }
+
+    function busyButtons(busy) {
+      state.busy = busy;
+      Array.prototype.forEach.call(modal.querySelectorAll('button[data-rc-go]'), function (b) {
+        b.disabled = busy;
+        b.textContent = busy ? '请稍候…' : b.getAttribute('data-rc-text');
+      });
+    }
+
+    function esc(value) {
+      var div = document.createElement('div');
+      div.textContent = value == null ? '' : String(value);
+      return div.innerHTML;
+    }
+
+    function buildModal() {
+      destroy();
+      modal = document.createElement('div');
+      modal.className = 'vpscs-rc-mask';
+      modal.innerHTML =
+        '<div class="vpscs-rc-modal" role="dialog" aria-modal="true">' +
+        '<button type="button" class="vpscs-rc-close" data-rc-close aria-label="关闭">×</button>' +
+        '<div class="vpscs-rc-head">钱包充值</div>' +
+        '<div class="vpscs-rc-body" data-rc-body></div>' +
+        '</div>';
+      document.body.appendChild(modal);
+      modal.addEventListener('click', function (event) {
+        if (event.target === modal) destroy();
+      });
+      modal.querySelector('[data-rc-close]').addEventListener('click', destroy);
+      return modal.querySelector('[data-rc-body]');
+    }
+
+    function stepAmount() {
+      var body = buildModal();
+      body.innerHTML =
+        '<div class="vpscs-rc-balance">充值到账户余额，支付完成后立即到账</div>' +
+        '<input class="vpscs-rc-amount" data-rc-amount type="number" min="1" max="100000" step="0.01" placeholder="输入充值金额（元）" />' +
+        '<div class="vpscs-rc-fixed">' +
+        FIXED_AMOUNTS.map(function (value) {
+          return '<button type="button" data-rc-fixed="' + value + '">¥' + value + '</button>';
+        }).join('') +
+        '</div>' +
+        '<button type="button" class="vpscs-rc-go" data-rc-go data-rc-text="下一步 · 选择支付方式">下一步 · 选择支付方式</button>' +
+        '<div class="vpscs-rc-err" data-rc-err></div>';
+
+      var input = body.querySelector('[data-rc-amount]');
+      Array.prototype.forEach.call(body.querySelectorAll('[data-rc-fixed]'), function (button) {
+        button.addEventListener('click', function () {
+          Array.prototype.forEach.call(body.querySelectorAll('[data-rc-fixed]'), function (other) {
+            other.classList.remove('is-active');
+          });
+          button.classList.add('is-active');
+          input.value = button.getAttribute('data-rc-fixed');
+        });
+      });
+      body.querySelector('[data-rc-go]').addEventListener('click', function () {
+        var value = Number(input.value);
+        if (!(value >= 1) || value > 100000) {
+          showError('请输入 1 ~ 100000 之间的金额');
+          return;
+        }
+        showError('');
+        state.amount = Math.round(value * 100) / 100;
+        stepMethods();
+      });
+      input.focus();
+    }
+
+    function stepMethods() {
+      var body = buildModal();
+      body.innerHTML = '<div class="vpscs-rc-balance">正在读取支付方式…</div>';
+      Promise.all([
+        api('recharge/create', { amount: state.amount }).catch(function (error) {
+          throw new Error('创建充值订单失败：' + error.message);
+        }),
+        api('order/getPaymentMethod').catch(function () { return []; })
+      ]).then(function (results) {
+        var order = results[0];
+        var methods = (results[1] || []).filter(function (item) { return Number(item.id) !== 0; });
+        state.tradeNo = order.trade_no;
+        if (!methods.length) {
+          body.innerHTML =
+            '<div class="vpscs-rc-balance">暂时没有可用的在线支付方式，请联系管理员。</div>' +
+            '<button type="button" class="vpscs-rc-back" data-rc-back>返回</button>';
+          bindBack(body);
+          return;
+        }
+        renderMethods(body, methods);
+      }).catch(function (error) {
+        body.innerHTML = '<div class="vpscs-rc-err" style="display:block">' + esc(error.message) + '</div>' +
+          '<button type="button" class="vpscs-rc-back" data-rc-back>返回修改金额</button>';
+        bindBack(body);
+      });
+    }
+
+    function bindBack(body) {
+      var back = body.querySelector('[data-rc-back]');
+      if (back) back.addEventListener('click', function () {
+        if (state.tradeNo) api('order/cancel', { trade_no: state.tradeNo }).catch(function () {});
+        state.tradeNo = '';
+        stepAmount();
+      });
+    }
+
+    function renderMethods(body, methods) {
+      body.innerHTML =
+        '<div class="vpscs-rc-balance">充值金额：<strong style="color:#fff;font-size:17px">' + fmtAmount(state.amount * 100) + '</strong></div>' +
+        methods.map(function (item) {
+          var icon = item.icon ? '<img src="' + esc(item.icon) + '" alt="" />' : '';
+          var fee = Number(item.handling_fee_fixed || 0) || Number(item.handling_fee_percent || 0)
+            ? '<div class="vpscs-rc-m-fee">可能含支付通道手续费</div>' : '';
+          return '<button type="button" class="vpscs-rc-method" data-rc-method="' + esc(item.id) + '">' + icon +
+            '<span class="vpscs-rc-m-name">' + esc(item.name || '在线支付') + '</span>' + fee + '</button>';
+        }).join('') +
+        '<button type="button" class="vpscs-rc-go" data-rc-go data-rc-text="立即支付" disabled>请先选择支付方式</button>' +
+        '<button type="button" class="vpscs-rc-back" data-rc-back>返回</button>' +
+        '<div class="vpscs-rc-err" data-rc-err></div>';
+
+      var go = body.querySelector('[data-rc-go]');
+      Array.prototype.forEach.call(body.querySelectorAll('[data-rc-method]'), function (button) {
+        button.addEventListener('click', function () {
+          Array.prototype.forEach.call(body.querySelectorAll('[data-rc-method]'), function (other) {
+            other.classList.remove('is-active');
+          });
+          button.classList.add('is-active');
+          state.method = button.getAttribute('data-rc-method');
+          go.disabled = false;
+          go.textContent = '立即支付';
+        });
+      });
+      go.addEventListener('click', function () {
+        if (!state.method || state.busy) return;
+        busyButtons(true);
+        showError('');
+        api('recharge/checkout', { trade_no: state.tradeNo, method: state.method }).then(function (data) {
+          busyButtons(false);
+          startPolling();
+          if (Number(data.type) === 0) stepQr(data);
+          else if (Number(data.type) === 1) stepRedirect(data);
+          else stepDone();
+        }).catch(function (error) {
+          busyButtons(false);
+          showError(error.message);
+        });
+      });
+      bindBack(body);
+    }
+
+    function stepQr(data) {
+      state.payAmount = data.pay_amount;
+      var body = buildModal();
+      body.innerHTML =
+        '<div class="vpscs-rc-pay-amount">¥' + esc(data.pay_amount) + '</div>' +
+        '<div class="vpscs-rc-qr" data-rc-qr>' + (data.qrcode || '') + '</div>' +
+        '<div class="vpscs-rc-qr-tip">请打开手机支付 App 扫码付款，支付后本弹窗自动到账</div>' +
+        (data.data ? '<a class="vpscs-rc-open-link" href="' + esc(data.data) + '" target="_blank" rel="noopener">在浏览器中打开支付链接</a>' : '') +
+        '<div class="vpscs-rc-qr-tip" data-rc-wait>等待支付中…</div>' +
+        '<button type="button" class="vpscs-rc-back" data-rc-cancel>取消支付</button>';
+      body.querySelector('[data-rc-cancel]').addEventListener('click', function () { destroy(); });
+      if (!data.qrcode) {
+        var qr = body.querySelector('[data-rc-qr]');
+        qr.textContent = '二维码生成失败，请用下方链接打开支付';
+        qr.style.fontSize = '13px';
+        qr.style.color = '#111';
+        qr.style.padding = '16px';
+      }
+    }
+
+    function stepRedirect(data) {
+      state.payAmount = data.pay_amount;
+      var body = buildModal();
+      body.innerHTML =
+        '<div class="vpscs-rc-pay-amount">¥' + esc(data.pay_amount) + '</div>' +
+        '<div class="vpscs-rc-qr-tip">支付完成后回到本弹窗自动到账</div>' +
+        '<button type="button" class="vpscs-rc-go" data-rc-open data-rc-text="前往收银台">前往收银台</button>' +
+        '<div class="vpscs-rc-qr-tip" data-rc-wait>等待支付中…</div>' +
+        '<button type="button" class="vpscs-rc-back" data-rc-cancel>取消支付</button>';
+      body.querySelector('[data-rc-open]').addEventListener('click', function () {
+        window.open(data.data, '_blank', 'noopener');
+      });
+      body.querySelector('[data-rc-cancel]').addEventListener('click', function () { destroy(); });
+    }
+
+    function stepDone() {
+      state.tradeNo = '';
+      var body = buildModal();
+      body.innerHTML =
+        '<div class="vpscs-rc-done">' +
+        '<div class="vpscs-rc-icon">✓</div>' +
+        '<div class="vpscs-rc-done-title">充值成功</div>' +
+        '<div class="vpscs-rc-done-sub">' + fmtAmount(state.amount * 100) + ' 已到账，余额可直接用于下单支付</div>' +
+        '</div>' +
+        '<button type="button" class="vpscs-rc-go" data-rc-reload data-rc-text="刷新页面查看余额">刷新页面查看余额</button>' +
+        '<button type="button" class="vpscs-rc-back" data-rc-finish>完成</button>';
+      body.querySelector('[data-rc-reload]').addEventListener('click', function () { window.location.reload(); });
+      body.querySelector('[data-rc-finish]').addEventListener('click', function () { destroy(); window.location.reload(); });
+    }
+
+    function startPolling() {
+      if (state.timer) clearInterval(state.timer);
+      var times = 0;
+      state.timer = setInterval(function () {
+        times += 1;
+        if (!modal || times > 240) { destroy(); return; }
+        var wait = modal.querySelector('[data-rc-wait]');
+        api('order/check?trade_no=' + encodeURIComponent(state.tradeNo)).then(function (status) {
+          if (!modal) return;
+          if (Number(status) === 3 || Number(status) === 1) {
+            destroy();
+            stepDone();
+          } else if (wait) {
+            wait.textContent = '等待支付中…（已等待 ' + Math.round(times * 2.5) + ' 秒）';
+          }
+        }).catch(function () {});
+      }, 2500);
+    }
+
+    // ---- 往「我的钱包」卡片塞充值按钮 ----
+    function injectButton() {
+      if (!document.body) return;
+      var cards = document.querySelectorAll('.n-card');
+      for (var i = 0; i < cards.length; i += 1) {
+        var card = cards[i];
+        var text = card.textContent || '';
+        var isWallet = text.indexOf('我的钱包') !== -1 || text.indexOf('My Wallet') !== -1;
+        var hasBalance = text.indexOf('账户余额') !== -1 || text.indexOf('Account Balance') !== -1 || text.indexOf('余额') !== -1;
+        if (!isWallet || !hasBalance || card.querySelector('[data-vpscs-recharge]')) continue;
+        var host = card.querySelector('.n-card-header__extra') || card.querySelector('.n-card-header');
+        if (!host) continue;
+        var button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'vpscs-rc-btn';
+        button.setAttribute('data-vpscs-recharge', '1');
+        button.textContent = '充值';
+        button.addEventListener('click', function (event) {
+          event.preventDefault();
+          event.stopPropagation();
+          stepAmount();
+        });
+        host.appendChild(button);
+      }
+    }
+
+    setInterval(injectButton, 1200);
+    injectButton();
+  })();
+  </script>
 </body>
 
 </html>

@@ -123,6 +123,18 @@ class OrderService
                 return null;
             }
 
+            // 余额充值订单：支付成功后只给账户加余额，不创建/续费任何订阅。
+            if ((int) $order->type === Order::TYPE_RECHARGE) {
+                if (!(new UserService())->addBalance((int) $order->user_id, (int) $order->total_amount)) {
+                    throw new \RuntimeException('余额充值入账失败');
+                }
+                $order->status = Order::STATUS_COMPLETED;
+                if (!$order->save()) {
+                    throw new \RuntimeException('订单信息保存失败');
+                }
+                return $order;
+            }
+
             $plan = Plan::find($order->plan_id);
             if (!$plan) {
                 throw new \RuntimeException('订阅不存在');
