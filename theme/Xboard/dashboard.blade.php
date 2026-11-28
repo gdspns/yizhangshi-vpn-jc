@@ -200,7 +200,63 @@
     .vl-foot-in { grid-template-columns: 1fr; text-align: center; }
     .vl-foot-in > :last-child { justify-self: center; }
   }
+
+  /* 用户端整体换成着陆页同款深绿风格（#0b100e + 绿色光晕） */
+  html.dark body,
+  html.dark #app,
+  html.dark #app .n-config-provider {
+    background: radial-gradient(circle at 50% 12%, rgba(42, 104, 70, .24), transparent 34%), #0b100e !important;
+    color: #edf5f0 !important;
+  }
+  html.dark #app .n-layout,
+  html.dark #app .n-layout-content,
+  html.dark #app .n-layout-scroll-container { background: transparent !important; }
+  html.dark #app .n-layout-sider,
+  html.dark #app .n-layout-sider .n-layout-sider-scroll-container {
+    background: rgba(12, 19, 15, .94) !important;
+    border-right: 1px solid #26322c !important;
+  }
+  html.dark #app .n-card,
+  html.dark #app .n-card-header,
+  html.dark #app .n-card__content {
+    background: rgba(18, 25, 22, .96) !important;
+    border-color: #29362f !important;
+  }
+  html.dark #app header,
+  html.dark #app .n-layout-header,
+  html.dark #app .flex.items-center.bg-white.px-4 {
+    background: rgba(11, 16, 14, .9) !important;
+    border-bottom: 1px solid #26322c !important;
+  }
+  html.dark #app .n-input,
+  html.dark #app .n-input-wrapper,
+  html.dark #app .n-base-selection,
+  html.dark #app .n-select {
+    --n-color: #0f1713 !important;
+    --n-color-focus: #111c16 !important;
+    --n-border: 1px solid #34463c !important;
+    --n-border-hover: 1px solid #4fbd80 !important;
+    --n-border-focus: 1px solid #4fbd80 !important;
+    --n-text-color: #edf5f0 !important;
+    --n-placeholder-color: #74877c !important;
+    background: #0f1713 !important;
+  }
+  /* 侧栏站点名：可点击回着陆页 */
+  html.dark #app .n-layout-sider .title-text { cursor: pointer; transition: color .15s ease; }
+  html.dark #app .n-layout-sider .title-text:hover { color: #70d79d !important; }
 </style>
+<script>
+  (function () {
+    var siteName = @json($title);
+    document.addEventListener('click', function (event) {
+      var node = event.target && event.target.closest ? event.target.closest('.n-layout-sider .title-text') : null;
+      if (!node || (node.textContent || '').trim() !== siteName) return;
+      event.preventDefault();
+      event.stopPropagation();
+      location.href = '/';
+    }, true);
+  })();
+</script>
 
 <body>
 
