@@ -432,22 +432,28 @@
         var tables = Array.prototype.slice.call(document.querySelectorAll('#root table'));
         var table = null;
         var index = -1;
+        var emailIndex = -1;
         tables.forEach(function (candidate) {
           if (table) return;
           var headers = Array.prototype.slice.call(candidate.querySelectorAll('thead th'));
           if (!headers.length) return;
           var subscriptionIndex = -1;
+          var mailIndex = -1;
           headers.forEach(function (th, i) {
             var text = th.textContent.replace(/\s+/g, '');
             if (subscriptionIndex === -1 && /订阅|subscription/i.test(text)) subscriptionIndex = i;
+            if (mailIndex === -1 && /邮箱|email/i.test(text)) mailIndex = i;
           });
-          if (subscriptionIndex !== -1) { table = candidate; index = subscriptionIndex; }
+          if (subscriptionIndex !== -1) { table = candidate; index = subscriptionIndex; emailIndex = mailIndex; }
         });
         if (!table || index === -1) return;
         Array.prototype.slice.call(table.querySelectorAll('tbody tr')).forEach(function (row) {
           var cell = row.children[index];
           if (!cell) return;
-          var emailMatch = (row.textContent || '').match(/[\w.+-]+@[\w.-]+/);
+          // Read the email from its own cell: the row text glues the ID in front
+          // of it and the device counter behind it ("1admin@admin.com0 / 10").
+          var emailCell = emailIndex >= 0 ? row.children[emailIndex] : null;
+          var emailMatch = ((emailCell && emailCell.textContent) || row.textContent || '').match(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/);
           if (!emailMatch) return;
           var user = adminUsers.find(function (item) { return item.email === emailMatch[0]; });
           var items = user && Array.isArray(user.subscription_profiles) ? user.subscription_profiles : [];
@@ -463,7 +469,7 @@
               if (id) sessionStorage.setItem('vpscs_admin_subscription_id', id);
             }, true);
           }
-          if (items.length < 1 || cell.querySelector('.vpscs-row-sub')) return;
+          if (items.length < 2 || cell.querySelector('.vpscs-row-sub')) return;
           var wrap = document.createElement('div');
           wrap.className = 'vpscs-row-sub';
           var select = document.createElement('select');
