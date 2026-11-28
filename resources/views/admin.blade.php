@@ -498,6 +498,7 @@
         setCellText(cell, text);
         cell.dataset.vpscsPainted = text;
         if (title) cell.title = title;
+        else if (!text) cell.removeAttribute('title');
       }
       function restoreCellText(cell) {
         if (!cell || cell.dataset.vpscsNativeText === undefined) return;
@@ -536,6 +537,20 @@
       function setNodeText(node, text) {
         if (node && node.textContent !== text) node.textContent = text;
       }
+      // 名下没有任何有效订阅时，流量列直接清空——不要显示「0 B / 0.0%」假数据。
+      function clearTraffic(row, usedIndex, totalIndex) {
+        var usedCell = usedIndex >= 0 ? row.children[usedIndex] : null;
+        var totalCell = totalIndex >= 0 ? row.children[totalIndex] : null;
+        if (!usedCell && !totalCell) return;
+        var usedNode = usedCell && usedCell.querySelector('span');
+        var percentNode = usedCell && usedCell.querySelectorAll('span')[1];
+        var bar = usedCell && usedCell.querySelector('[style*="width"]');
+        var totalNode = totalCell && totalCell.querySelector('div');
+        setNodeText(usedNode, '');
+        setNodeText(percentNode, '');
+        if (bar && bar.style.width !== '0%') bar.style.width = '0%';
+        setNodeText(totalNode, '');
+      }
       // 已用流量 / 总流量也跟着当前订阅走，不然「订阅」写 A、流量却是账号本身的。
       function paintTraffic(row, profile, usedIndex, totalIndex) {
         var usedCell = usedIndex >= 0 ? row.children[usedIndex] : null;
@@ -546,12 +561,7 @@
         var totalNode = totalCell && totalCell.querySelector('div');
 
         if (!profile) {
-          if (usedCell && usedCell.dataset.vpscsNativeUsed !== undefined) {
-            setNodeText(usedNode, usedCell.dataset.vpscsNativeUsed);
-            setNodeText(percentNode, usedCell.dataset.vpscsNativePercent);
-            if (bar && usedCell.dataset.vpscsNativeBar !== undefined) bar.style.width = usedCell.dataset.vpscsNativeBar;
-          }
-          if (totalCell && totalCell.dataset.vpscsNativeTotal !== undefined) setNodeText(totalNode, totalCell.dataset.vpscsNativeTotal);
+          clearTraffic(row, usedIndex, totalIndex);
           return;
         }
 
@@ -577,9 +587,17 @@
         }
       }
       // 邮箱前面挂一个「N 条」小标签：不用点开编辑就知道这个账号有几条订阅。
+      // 没有订阅时不挂标签，避免满屏「0 条」。
       function paintSubCount(cell, count) {
         var holder = cell && cell.querySelector('div');
         if (!holder) return;
+        if (!count) {
+          if (holder.dataset.vpscsCount !== undefined) {
+            delete holder.dataset.vpscsCount;
+            holder.removeAttribute('title');
+          }
+          return;
+        }
         var text = count + ' 条';
         if (holder.dataset.vpscsCount !== text) holder.dataset.vpscsCount = text;
         var tip = '该账号名下共 ' + count + ' 条有效订阅';
@@ -608,8 +626,9 @@
             paintSubCount(emailCell, count);
           }
           if (!profile) {
-            restoreCellText(nameCell);
-            restoreCellText(expiryCell);
+            // 没有订阅：订阅 / 到期列留空，不显示「-」或过期的旧日期。
+            paintCellText(nameCell, '');
+            paintCellText(expiryCell, '');
             restoreExpiryColor(expiryCell);
             return;
           }
