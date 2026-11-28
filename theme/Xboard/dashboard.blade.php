@@ -106,6 +106,12 @@
   .vl-plan-filter { width: max-content; max-width: 100%; margin: 0 auto 32px; padding: 6px; display: flex; gap: 6px; border: 1px solid #3a2b35; border-radius: 999px; background: #1b1118; }
   .vl-filter-btn { min-height: 42px; padding: 0 22px; border: 0; border-radius: 999px; color: #d7cbd3; background: transparent; cursor: pointer; font-size: 16px; }
   .vl-filter-btn.is-active { color: #fff; background: #e64e91; box-shadow: 0 8px 24px rgba(230,78,145,.3); }
+  body.vpscs-shelf-mode #app .card-container { display: none !important; }
+  .vpscs-plan-shelf { margin-top: 4px; }
+  .vpscs-plan-shelf .vl-plan { cursor: pointer; transition: transform .2s, border-color .2s; }
+  .vpscs-plan-shelf .vl-plan:hover { transform: translateY(-2px); }
+  .vpscs-plan-shelf .vl-btn { width: 100%; border: 0; cursor: pointer; font-family: inherit; font-size: 16px; }
+  .vl-plan-benefits .is-off { color: #6b7280; }
   @media (max-width: 820px) {
     .vl-hero-in { grid-template-columns: 1fr; text-align: center; }
     .vl-lead { margin-inline: auto; }
@@ -225,25 +231,63 @@
         return '<li class="vl-region"><span class="vl-cc">' + escapeHtml(region.code) + '</span><span class="vl-region-name">' + escapeHtml(region.name) + '</span><span class="vl-region-count">' + escapeHtml(region.count ? region.count + ' 个节点' : '已覆盖') + '</span></li>';
       }).join('');
 
+      // 商品卡的唯一模板：着陆页与用户中心共用同一份，字段/排版不会再分叉。
+      function planBenefits(content) {
+        var raw = String(content == null ? '' : content);
+        var parsed = null;
+        try { parsed = JSON.parse(raw); } catch (_) {}
+        if (Array.isArray(parsed)) {
+          return parsed.slice(0, 4).map(function (item) {
+            var ok = item && item.support !== false;
+            return '<li class="' + (ok ? '' : 'is-off') + '">' + (ok ? '✓ ' : '✗ ') + escapeHtml((item && item.feature) || '') + '</li>';
+          }).join('');
+        }
+        var text = raw.replace(/<br\s*\/?>/gi, '\n').replace(/<\/(p|div|li|h[1-6])>/gi, '\n').replace(/<[^>]+>/g, '');
+        return text.split(/\r?\n/).map(function (line) { return line.trim(); }).filter(Boolean).slice(0, 4)
+          .map(function (line) { return '<li>✓ ' + escapeHtml(line) + '</li>'; }).join('');
+      }
+
+      function planCardHtml(plan, action) {
+        var one = plan.onetime_price != null && Number(plan.onetime_price) > 0;
+        var selected = one ? ['onetime_price', '一次性'] : periods.find(function (p) { return plan[p[0]] != null && Number(plan[p[0]]) > 0; });
+        if (!selected) selected = ['onetime_price', '一次性'];
+        var price = Number(plan[selected[0]] || 0) / 100;
+        var suffix = one ? '' : ' / ' + selected[1];
+        var extra = one ? '一次购买，长期有效' : periods.filter(function (p) { return plan[p[0]] != null && Number(plan[p[0]]) > 0 && p[0] !== selected[0]; }).slice(0, 3).map(function (p) { return p[1] + '付 ¥' + (Number(plan[p[0]]) / 100).toFixed(2); }).join(' · ');
+        return '<li class="vl-plan" data-plan-id="' + escapeHtml(String(plan.id || '')) + '">'
+          + '<span class="vl-kind">' + (one ? '一次性套餐' : '周期套餐') + '</span>'
+          + '<h3>' + escapeHtml(plan.name || '') + '</h3>'
+          + '<p class="vl-price">¥' + price.toFixed(2) + suffix + '</p>'
+          + '<ul class="vl-plan-benefits">' + planBenefits(plan.content) + '</ul>'
+          + '<p class="vl-price-note">' + escapeHtml(extra) + '</p>'
+          + action + '</li>';
+      }
+
+      function filterPlans(plans, mode) {
+        return plans.filter(function (plan) {
+          var one = plan.onetime_price != null && Number(plan.onetime_price) > 0;
+          return mode === 'all' || (mode === 'onetime' ? one : !one);
+        });
+      }
+
       function renderPlans() {
         var list = document.getElementById('vl-plan-list');
-        var plans = landingPlans.filter(function (plan) {
-          var one = plan.onetime_price != null && Number(plan.onetime_price) > 0;
-          return planFilter === 'all' || (planFilter === 'onetime' ? one : !one);
-        });
+        var plans = filterPlans(landingPlans, planFilter);
         if (!plans.length) { list.innerHTML = '<li class="vl-empty">该分类暂无在售套餐</li>'; return; }
         list.innerHTML = plans.map(function (plan) {
-          var one = plan.onetime_price != null && Number(plan.onetime_price) > 0;
-          var selected = one ? ['onetime_price', '一次性'] : periods.find(function (p) { return plan[p[0]] != null && Number(plan[p[0]]) > 0; });
-          var price = selected ? Number(plan[selected[0]]) / 100 : 0;
-          var kind = one ? '一次性套餐' : '周期套餐';
-          var suffix = one ? '' : ' / ' + selected[1];
-          var extra = one ? '一次购买，长期有效' : periods.filter(function (p) { return plan[p[0]] != null && Number(plan[p[0]]) > 0 && p[0] !== selected[0]; }).slice(0, 3).map(function (p) { return p[1] + '付 ¥' + (Number(plan[p[0]]) / 100).toFixed(2); }).join(' · ');
-          var desc = String(plan.content || '').replace(/<[^>]+>/g, '').split('\n').slice(0, 3).join('\n');
-          var benefits = desc.split('\n').filter(Boolean).map(function (line) { return '<li>✓ ' + escapeHtml(line) + '</li>'; }).join('');
-          return '<li class="vl-plan"><span class="vl-kind">' + kind + '</span><h3>' + escapeHtml(plan.name) + '</h3><p class="vl-price">¥' + price.toFixed(2) + suffix + '</p><ul class="vl-plan-benefits">' + benefits + '</ul><p class="vl-price-note">' + escapeHtml(extra) + '</p><a class="vl-btn vl-enter-app" href="#/register">订阅</a></li>';
+          return planCardHtml(plan, '<a class="vl-btn" href="#/register">订阅</a>');
         }).join('');
       }
+      // 卡片是异步渲染的，点击必须委托，否则按钮拿到的是没绑事件的死链。
+      document.getElementById('vl-plan-list').addEventListener('click', function (event) {
+        var link = event.target.closest('a.vl-btn');
+        if (!link) return;
+        event.preventDefault();
+        landingRequested = false;
+        document.body.classList.remove('vpscs-landing-mode');
+        loadUserApp();
+        location.hash = storedAccessToken() ? '#/plan' : '#/register';
+      });
       document.querySelectorAll('.vl-filter-btn').forEach(function (button) { button.addEventListener('click', function () { planFilter = button.dataset.planFilter; document.querySelectorAll('.vl-filter-btn').forEach(function (item) { item.classList.toggle('is-active', item === button); }); renderPlans(); }); });
       fetch('/api/v1/guest/plan/fetch').then(function (r) { return r.json(); }).then(function (payload) {
         landingPlans = payload.data || [];
@@ -328,6 +372,71 @@
       addEventListener('resize', enforcePlanGrid, { passive: true });
       addEventListener('hashchange', function () { setTimeout(enforcePlanGrid, 0); });
 
+      // 用户中心「购买订阅」：隐藏应用原生卡片，用与着陆页完全相同的模板重绘。
+      var shelfPlans = null;
+      var shelfLoading = false;
+
+      function planShelfMode() { return /^#\/plan\/?$/.test(location.hash); }
+
+      function shelfFilterMode() {
+        var items = Array.prototype.slice.call(document.querySelectorAll('#app .n-base-segmented-item'));
+        var index = -1;
+        items.forEach(function (item, i) {
+          if (item.classList.contains('n-base-segmented-item--active') || item.getAttribute('aria-checked') === 'true') index = i;
+        });
+        return index === 1 ? 'period' : (index === 2 ? 'onetime' : 'all');
+      }
+
+      function paintPlanShelf() {
+        var shelf = document.getElementById('vpscs-plan-shelf');
+        if (!shelf || !shelfPlans) return;
+        var plans = filterPlans(shelfPlans, shelfFilterMode());
+        if (!plans.length) { shelf.innerHTML = '<li class="vl-empty">该分类暂无在售套餐</li>'; return; }
+        shelf.innerHTML = plans.map(function (plan) {
+          return planCardHtml(plan, '<button type="button" class="vl-btn" data-buy="' + escapeHtml(String(plan.id || '')) + '">立即订阅</button>');
+        }).join('');
+      }
+
+      function mountPlanShelf() {
+        if (!planShelfMode() || document.getElementById('vpscs-plan-shelf')) return;
+        var grid = document.querySelector('#app .card-container');
+        if (!grid) return;
+        var shelf = document.createElement('ul');
+        shelf.id = 'vpscs-plan-shelf';
+        shelf.className = 'vl-plans vpscs-plan-shelf';
+        grid.parentNode.insertBefore(shelf, grid.nextSibling);
+        document.body.classList.add('vpscs-shelf-mode');
+        if (shelfPlans) { paintPlanShelf(); return; }
+        if (shelfLoading) return;
+        shelfLoading = true;
+        shelf.innerHTML = '<li class="vl-empty">正在加载套餐…</li>';
+        nativeFetch('/api/v1/user/plan/fetch', { headers: authHeaders(), credentials: 'same-origin' })
+          .then(function (r) { if (!r.ok) throw new Error(r.status === 403 ? '登录已过期，请重新登录' : '套餐加载失败（' + r.status + '）'); return r.json(); })
+          .then(function (payload) { shelfPlans = payload.data || []; paintPlanShelf(); })
+          .catch(function (error) { shelf.innerHTML = '<li class="vl-empty">' + escapeHtml(error.message || '套餐加载失败') + '</li>'; })
+          .finally(function () { shelfLoading = false; });
+      }
+
+      function syncPlanShelf() {
+        if (!planShelfMode()) {
+          var shelf = document.getElementById('vpscs-plan-shelf');
+          if (shelf) shelf.remove();
+          document.body.classList.remove('vpscs-shelf-mode');
+          return;
+        }
+        mountPlanShelf();
+      }
+
+      document.addEventListener('click', function (event) {
+        if (!planShelfMode()) return;
+        var buy = event.target.closest('#vpscs-plan-shelf [data-buy]');
+        var card = event.target.closest('#vpscs-plan-shelf .vl-plan');
+        if (buy) { event.preventDefault(); location.hash = '#/plan/' + buy.getAttribute('data-buy'); return; }
+        if (card) { location.hash = '#/plan/' + (card.getAttribute('data-plan-id') || ''); return; }
+        if (event.target.closest('#app .n-base-segmented-item')) setTimeout(paintPlanShelf, 0);
+      }, true);
+      addEventListener('hashchange', function () { setTimeout(syncPlanShelf, 0); });
+
       var subscriptionRenderBusy = false;
       function renderSubscriptionList() {
         if (!/dashboard/i.test(location.hash) || subscriptionRenderBusy || document.getElementById('vpscs-subscription-list')) return;
@@ -364,6 +473,7 @@
       // another child-list mutation.  A light poll makes the enhancement
       // deterministic after refresh and stops doing work once it is rendered.
       setInterval(renderSubscriptionList, 900);
+      setInterval(syncPlanShelf, 900);
     })();
   </script>
 </body>
