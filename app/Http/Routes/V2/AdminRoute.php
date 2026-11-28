@@ -36,6 +36,7 @@ class AdminRoute
                 $router->get('/config', [SoftwareController::class, 'config']);
                 $router->post('/config', [SoftwareController::class, 'save']);
                 $router->get('/telemetry', [SoftwareController::class, 'telemetry']);
+                $router->post('/user/delete', [SoftwareController::class, 'deleteUser']);
             });
 
             // Config

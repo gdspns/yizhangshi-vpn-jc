@@ -8,3 +8,4 @@
 .vpscs-software-collapsed:hover{background:hsl(var(--accent));color:hsl(var(--accent-foreground))}
 body:has([data-collapsed="true"]) #vpscs-software-page{left:3.5rem}
 body.vpscs-software-open{overflow:hidden}
+.vpscs-sw-row-head>div{display:flex;align-items:center;gap:10px}.vpscs-sw-row-head .vpscs-sw-btn{min-height:32px;padding:0 12px}

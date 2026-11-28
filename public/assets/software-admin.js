@@ -84,7 +84,7 @@
     page.querySelector('[data-user-count]').textContent = users.length;
     var userPages = Math.max(1, Math.ceil(users.length / perPage)); userPage = Math.min(userPage, userPages);
     var userRows = users.slice((userPage - 1) * perPage, userPage * perPage).map(function (item) {
-      return '<div class="vpscs-sw-row"><div class="vpscs-sw-row-head"><strong>' + escapeHtml(item.user_remark || '未设置备注') + '</strong><span class="' + (item.online ? 'vpscs-sw-online' : 'vpscs-sw-offline') + '">' + (item.online ? '● 在线' : '● 离线') + '</span></div><div>' + escapeHtml(item.user_identifier) + '</div><div class="vpscs-sw-muted">IP：' + escapeHtml(item.ip_address || '-') + ' · 版本：' + escapeHtml(item.app_version || '-') + '</div><div class="vpscs-sw-muted">节点：' + escapeHtml(item.current_node || '未连接') + '</div><div class="vpscs-sw-muted">最后活跃：' + escapeHtml(dateText(item.last_seen)) + '</div></div>';
+      return '<div class="vpscs-sw-row"><div class="vpscs-sw-row-head"><strong>' + escapeHtml(item.user_remark || '未设置备注') + '</strong><div><span class="' + (item.online ? 'vpscs-sw-online' : 'vpscs-sw-offline') + '">' + (item.online ? '● 在线' : '● 离线') + '</span><button type="button" class="vpscs-sw-btn is-danger" data-delete-user="' + escapeHtml(item.id) + '" data-delete-user-name="' + escapeHtml(item.user_remark || item.user_identifier || '该用户') + '">删除</button></div></div><div>' + escapeHtml(item.user_identifier) + '</div><div class="vpscs-sw-muted">IP：' + escapeHtml(item.ip_address || '-') + ' · 版本：' + escapeHtml(item.app_version || '-') + '</div><div class="vpscs-sw-muted">节点：' + escapeHtml(item.current_node || '未连接') + '</div><div class="vpscs-sw-muted">最后活跃：' + escapeHtml(dateText(item.last_seen)) + '</div></div>';
     }).join('') || '<div class="vpscs-sw-row vpscs-sw-muted">还没有软件用户记录</div>';
     page.querySelector('[data-users]').innerHTML = userRows;
     page.querySelector('[data-user-page]').textContent = userPage + ' / ' + userPages;
@@ -106,13 +106,26 @@
       '<section class="vpscs-sw-card" style="margin-top:22px"><div class="vpscs-sw-title"><h2>软件使用情况</h2></div><div class="vpscs-sw-stats"><div class="vpscs-sw-stat">当前在线<strong data-online-count>0</strong></div><div class="vpscs-sw-stat">登录过的软件用户<strong data-user-count>0</strong></div></div><div class="vpscs-sw-list"><h3>软件用户在线状态</h3><div data-users></div><div class="vpscs-sw-pager"><button class="vpscs-sw-btn" data-user-prev>上一页</button><span data-user-page>1 / 1</span><button class="vpscs-sw-btn" data-user-next>下一页</button></div></div></section></div>';
     document.body.appendChild(page); form = page.querySelector('[data-form]');
     form.addEventListener('submit', function (event) { event.preventDefault(); saveConfig(false, form.querySelector('button[type="submit"]')); });
-    page.addEventListener('click', function (event) {
+    page.addEventListener('click', async function (event) {
       var button = event.target.closest('button'); if (!button) return; event.preventDefault();
       if (button.matches('[data-refresh]')) { Promise.all([loadConfig(), loadTelemetry()]); }
       if (button.matches('[data-save-section]')) saveConfig(false, button);
       if (button.matches('[data-publish-popup]')) saveConfig(true, button);
       if (button.matches('[data-user-prev]')) { userPage = Math.max(1, userPage - 1); renderTelemetry(); }
       if (button.matches('[data-user-next]')) { userPage++; renderTelemetry(); }
+      if (button.matches('[data-delete-user]')) {
+        var userName = button.dataset.deleteUserName || '该用户';
+        if (!window.confirm('确定删除“' + userName + '”的软件在线记录吗？\n用户以后再次打开软件时会重新出现在列表中。')) return;
+        setButtonStatus(button, '删除中…', true);
+        try {
+          await api('user/delete', { method: 'POST', body: JSON.stringify({ id: button.dataset.deleteUser }) });
+          setStatus('✅ 软件用户记录已删除');
+          await loadTelemetry(true);
+        } catch (error) {
+          setStatus('❌ ' + error.message);
+          setButtonStatus(button, '删除失败', false);
+        }
+      }
     });
   }
 

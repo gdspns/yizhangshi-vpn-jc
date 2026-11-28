@@ -66,4 +66,21 @@ class SoftwareController extends Controller
         });
         return $this->success(['users' => $users]);
     }
+
+    public function deleteUser(Request $request)
+    {
+        $data = $request->validate([
+            'id' => 'required|uuid',
+        ], [
+            'id.required' => '缺少软件用户记录 ID',
+            'id.uuid' => '软件用户记录 ID 无效',
+        ]);
+
+        $deleted = DB::table('software_online_users')->where('id', $data['id'])->delete();
+        if (!$deleted) {
+            return response()->json(['message' => '软件用户记录不存在或已被删除'], 404);
+        }
+
+        return $this->success(true);
+    }
 }
