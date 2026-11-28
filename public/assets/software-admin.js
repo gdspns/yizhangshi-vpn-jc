@@ -6,10 +6,11 @@
 
   function escapeHtml(value) { var node = document.createElement('div'); node.textContent = value == null ? '' : String(value); return node.innerHTML; }
   function token() {
-    // 后台把 token 存在 XBOARD_ACCESS_TOKEN（键名全大写），值是 JSON。
+    // 后台把登录票据存在 VUE_NAIVE_ACCESS_TOKEN（值是 {value:'xx|yy'}），
+    // 旧版本叫 XBOARD_ACCESS_TOKEN，两种都认。
     var keys = Object.keys(localStorage);
     for (var i = 0; i < keys.length; i += 1) {
-      if (!/xboard[_-]?access[_-]?token$/i.test(keys[i])) continue;
+      if (!/(xboard|vue_naive)[_-]?access[_-]?token$/i.test(keys[i])) continue;
       var raw = localStorage.getItem(keys[i]) || '';
       var parsed = raw;
       try { parsed = JSON.parse(raw); } catch (_) {}
@@ -19,9 +20,14 @@
     }
     return '';
   }
+  function authHeader() {
+    var value = token();
+    if (!value) return '';
+    return /^Bearer\s/i.test(value) ? value : 'Bearer ' + value;
+  }
   function api(path, init) {
     init = init || {};
-    init.headers = Object.assign({ 'Accept': 'application/json', 'Content-Type': 'application/json', 'Authorization': token() }, init.headers || {});
+    init.headers = Object.assign({ 'Accept': 'application/json', 'Content-Type': 'application/json', 'Authorization': authHeader() }, init.headers || {});
     return fetch(options.apiBase + '/' + path, init).then(async function (response) {
       var payload = await response.json().catch(function () { return {}; });
       if (!response.ok) {

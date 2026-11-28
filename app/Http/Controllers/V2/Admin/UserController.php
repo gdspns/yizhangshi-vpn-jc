@@ -46,6 +46,65 @@ class UserController extends Controller
         return $this->success($result);
     }
 
+    /**
+     * 编辑弹窗里改某条订阅的流量 / 到期时间。
+     * 只动这两个字段，不碰邮箱、套餐、权限组，避免误改整个账号。
+     */
+    public function updateSubscription(Request $request)
+    {
+        $request->validate([
+            'id' => 'required|integer',
+            'transfer_enable' => 'nullable|numeric|min:0',
+            'expired_at' => 'nullable|integer',
+        ]);
+
+        $user = User::find((int) $request->input('id'));
+        if (!$user) {
+            return $this->fail([400202, '订阅不存在']);
+        }
+
+        $payload = $request->all();
+        // 流量按 GB 传，入库换成字节；0 是合法值，不能用 has() 判断。
+        if (array_key_exists('transfer_enable', $payload) && $payload['transfer_enable'] !== null) {
+            $user->transfer_enable = (int) round(((float) $payload['transfer_enable']) * 1073741824);
+        }
+        if (array_key_exists('expired_at', $payload)) {
+            $value = $payload['expired_at'];
+            $user->expired_at = ($value === null || $value === '') ? null : (int) $value;
+        }
+
+        $user->save();
+
+        return $this->success([
+            'id' => $user->id,
+            'transfer_enable' => $user->transfer_enable,
+            'expired_at' => $user->expired_at,
+            'u' => $user->u,
+            'd' => $user->d,
+        ]);
+    }
+
+    /** 删除一条名下订阅（主账号不允许在这里删，防止把用户本身删掉）。 */
+    public function destroySubscription(Request $request)
+    {
+        $user = User::find((int) $request->input('id'));
+        if (!$user) {
+            return $this->fail([400202, '订阅不存在']);
+        }
+        if (!$user->owner_user_id) {
+            return $this->fail([400403, '这是主账号，不能从订阅面板删除']);
+        }
+
+        // 历史订单还引用着这条订阅，先解除引用再删，免得留下悬空 id。
+        \Illuminate\Support\Facades\DB::table('v2_order')
+            ->where('subscription_user_id', $user->id)
+            ->update(['subscription_user_id' => null]);
+
+        $user->delete();
+
+        return $this->success(true);
+    }
+
     // Apply filters and sorts to the query builder.
     private function applyFiltersAndSorts(Request $request, Builder|QueryBuilder $builder): void
     {

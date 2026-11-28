@@ -331,7 +331,7 @@
       }
       window.fetch = function (input, init) {
         var url = typeof input === 'string' ? input : input.url;
-        var selectedId = sessionStorage.getItem('vpscs_admin_subscription_id');
+        var selectedId = activeSubscriptionId();
         var targetsSubscription = selectedId && /\/api\/v2\/admin\/(user\/(update|resetSecret|drop)|order\/|stat\/user)/i.test(url);
         if (targetsSubscription && typeof input === 'string') {
           try { var parsed = new URL(input, location.origin); ['id', 'user_id'].forEach(function (key) { if (parsed.searchParams.has(key)) parsed.searchParams.set(key, selectedId); }); input = parsed.pathname + parsed.search; url = input; } catch (_) {}
@@ -360,7 +360,7 @@
       var nativeOpen = XMLHttpRequest.prototype.open;
       var nativeSend = XMLHttpRequest.prototype.send;
       XMLHttpRequest.prototype.open = function (method, url) {
-        var selectedId = sessionStorage.getItem('vpscs_admin_subscription_id');
+        var selectedId = activeSubscriptionId();
         var nextUrl = String(url);
         if (selectedId && /\/(user\/(update|resetSecret|destroy)|order\/|stat\/getStatUser)/i.test(nextUrl)) {
           try {
@@ -386,7 +386,7 @@
         return nativeOpen.apply(this, [method, nextUrl].concat(Array.prototype.slice.call(arguments, 2)));
       };
       XMLHttpRequest.prototype.send = function (body) {
-        var selectedId = sessionStorage.getItem('vpscs_admin_subscription_id');
+        var selectedId = activeSubscriptionId();
         if (selectedId && /\/(user\/(update|resetSecret|destroy)|order\/|stat\/getStatUser)/i.test(this.__vpscsUrl || '') && typeof body === 'string') {
           try {
             var payload = JSON.parse(body);
@@ -398,6 +398,13 @@
         }
         return nativeSend.call(this, body);
       };
+      // 只有「编辑用户」弹窗里的订阅面板打开时，才允许把请求里的 id
+      // 换成选中的订阅 id。否则在列表里直接点删除，会被上一轮残留的
+      // 订阅 id 劫持，删错账号。
+      function activeSubscriptionId() {
+        if (!document.querySelector('.vpscs-admin-subscriptions')) return '';
+        return sessionStorage.getItem('vpscs_admin_subscription_id') || '';
+      }
       // 备注号：后端按 id 升序算好的 seq，用户端「我的订阅」用同一个数字。
       function profileNo(item, index) {
         var no = Number(item && item.seq);
@@ -434,6 +441,180 @@
       function subscriptionSignature(items) {
         return (items || []).map(function (item) { return [item.id, profileNo(item, 0), item.name, item.expired_at, item.transfer_enable, item.u, item.d].join(':'); }).join(',');
       }
+      // ---- 编辑弹窗里的订阅面板 ----
+      // 列表行里不再放订阅选择器（点「编辑」就能管理全部订阅），
+      // 这里除了切换订阅，还能直接改流量、改到期、删除该订阅。
+      function subscriptionRequest(path, body) {
+        var secure = (window.settings && window.settings.secure_path) || '';
+        return nativeFetch('/api/v2/' + secure + path, {
+          method: 'POST',
+          headers: { Authorization: authHeader(adminToken()), 'Content-Type': 'application/json', 'Content-Language': 'zh-CN' },
+          credentials: 'same-origin',
+          body: JSON.stringify(body || {}),
+        }).then(function (response) {
+          return response.json().catch(function () { return {}; }).then(function (payload) {
+            if (!response.ok) throw new Error((payload && payload.message) || ('请求失败（' + response.status + '）'));
+            return payload && Object.prototype.hasOwnProperty.call(payload, 'data') ? payload.data : payload;
+          });
+        });
+      }
+      function gbToBytes(gb) { return Math.max(0, Math.round(Number(gb || 0) * 1073741824)); }
+      function bytesToGb(bytes) { return Number(bytes || 0) / 1073741824; }
+      function dateInputValue(timestamp) {
+        if (!timestamp) return '';
+        var date = new Date(Number(timestamp) * 1000);
+        return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
+      }
+      function subscriptionStatus(box, message, kind) {
+        var node = box && box.querySelector('.vpscs-sub-status');
+        if (!node) return;
+        node.textContent = message || '';
+        node.className = 'vpscs-sub-status' + (kind ? ' is-' + kind : '');
+      }
+      function repaintSubscriptionPanel(message, kind) {
+        var box = document.querySelector('.vpscs-admin-subscriptions');
+        if (!box) return;
+        box.dataset.signature = '';
+        renderSubscriptionPicker();
+        var fresh = document.querySelector('.vpscs-admin-subscriptions');
+        if (fresh && message) subscriptionStatus(fresh, message, kind);
+      }
+      function saveSubscriptionTraffic(box, item, gb) {
+        subscriptionStatus(box, '正在保存流量…');
+        subscriptionRequest('/user/subscription/update', { id: item.id, transfer_enable: gb })
+          .then(function (data) {
+            item.transfer_enable = data && data.transfer_enable != null ? data.transfer_enable : gbToBytes(gb);
+            if (data && data.u != null) item.u = data.u;
+            if (data && data.d != null) item.d = data.d;
+            repaintSubscriptionPanel('流量已改为 ' + bytesToGb(item.transfer_enable).toFixed(2) + ' GB', 'ok');
+            scheduleUserListRefresh();
+          })
+          .catch(function (error) { subscriptionStatus(box, '保存失败：' + error.message, 'error'); });
+      }
+      function saveSubscriptionExpire(box, item, timestamp) {
+        subscriptionStatus(box, '正在保存到期时间…');
+        subscriptionRequest('/user/subscription/update', { id: item.id, expired_at: timestamp })
+          .then(function (data) {
+            item.expired_at = data && Object.prototype.hasOwnProperty.call(data, 'expired_at') ? data.expired_at : timestamp;
+            repaintSubscriptionPanel(timestamp ? '到期时间已改为 ' + dateInputValue(timestamp) : '已设为长期有效', 'ok');
+            scheduleUserListRefresh();
+          })
+          .catch(function (error) { subscriptionStatus(box, '保存失败：' + error.message, 'error'); });
+      }
+      function paintSubscriptionDetail(box, index) {
+        var item = profiles[index] || {};
+        sessionStorage.setItem('vpscs_admin_subscription_id', item.id || '');
+        var detail = box.querySelector('.vpscs-admin-subscription-detail');
+        if (!detail) return;
+        detail.innerHTML = '';
+
+        var head = document.createElement('div');
+        head.className = 'vpscs-sub-line is-strong';
+        head.textContent = '当前操作目标：订阅' + profileNo(item, index) + '（' + (item.name || '订阅') + '，ID ' + item.id + '）';
+        detail.appendChild(head);
+
+        var plan = document.createElement('div');
+        plan.className = 'vpscs-sub-line';
+        plan.textContent = '套餐：' + ((item.plan && item.plan.name) || item.name || '-');
+        detail.appendChild(plan);
+
+        var traffic = document.createElement('div');
+        traffic.className = 'vpscs-sub-line vpscs-sub-edit';
+        traffic.innerHTML = '<span class="vpscs-sub-key">流量</span>'
+          + '<input class="vpscs-sub-amount" type="number" min="0" step="1" value="' + bytesToGb(item.transfer_enable).toFixed(2) + '"><span class="vpscs-sub-unit">GB</span>'
+          + '<button type="button" data-act="traffic-minus">−10G</button>'
+          + '<button type="button" data-act="traffic-plus">+10G</button>'
+          + '<button type="button" data-act="traffic-plus100">+100G</button>'
+          + '<button type="button" class="is-primary" data-act="traffic-save">保存</button>';
+        detail.appendChild(traffic);
+
+        var used = document.createElement('div');
+        used.className = 'vpscs-sub-line is-muted';
+        used.textContent = '已用 ' + bytesToGb(Number(item.u || 0) + Number(item.d || 0)).toFixed(2) + ' GB（改总量不影响已用）';
+        detail.appendChild(used);
+
+        var expire = document.createElement('div');
+        expire.className = 'vpscs-sub-line vpscs-sub-edit';
+        expire.innerHTML = '<span class="vpscs-sub-key">到期</span>'
+          + '<input class="vpscs-sub-date" type="date" value="' + dateInputValue(item.expired_at) + '">'
+          + '<button type="button" class="is-primary" data-act="expire-save">保存</button>'
+          + '<button type="button" data-act="expire-clear">设为长期</button>';
+        detail.appendChild(expire);
+
+        var url = document.createElement('input');
+        url.className = 'vpscs-sub-url';
+        url.readOnly = true;
+        url.value = item.subscribe_url || '';
+        detail.appendChild(url);
+
+        var actions = document.createElement('div');
+        actions.className = 'vpscs-sub-line vpscs-sub-edit';
+        actions.innerHTML = '<button type="button" class="is-danger" data-act="delete">删除此订阅</button>';
+        detail.appendChild(actions);
+
+        var status = document.createElement('div');
+        status.className = 'vpscs-sub-status';
+        detail.appendChild(status);
+
+        detail.addEventListener('click', function (event) {
+          var button = event.target.closest('button[data-act]');
+          if (button) event.stopPropagation();
+          if (!button || button.disabled) return;
+          var act = button.getAttribute('data-act');
+          var amount = detail.querySelector('.vpscs-sub-amount');
+          var dateField = detail.querySelector('.vpscs-sub-date');
+          if (act === 'traffic-save') {
+            saveSubscriptionTraffic(box, item, Math.max(0, Number(amount.value || 0)));
+            return;
+          }
+          if (act === 'traffic-minus' || act === 'traffic-plus' || act === 'traffic-plus100') {
+            var delta = act === 'traffic-minus' ? -10 : (act === 'traffic-plus' ? 10 : 100);
+            saveSubscriptionTraffic(box, item, Math.max(0, bytesToGb(item.transfer_enable) + delta));
+            return;
+          }
+          if (act === 'expire-save') {
+            if (!dateField.value) { subscriptionStatus(box, '先选日期，或用「设为长期」', 'error'); return; }
+            saveSubscriptionExpire(box, item, Math.floor(new Date(dateField.value + 'T23:59:59').getTime() / 1000));
+            return;
+          }
+          if (act === 'expire-clear') { saveSubscriptionExpire(box, item, item.expired_at ? 0 : null); return; }
+          if (act === 'delete') {
+            if (!window.confirm('确定删除「' + (item.name || '订阅') + '」这条订阅吗？删除后订阅链接立即失效，无法恢复。')) return;
+            button.disabled = true;
+            subscriptionStatus(box, '正在删除…');
+            subscriptionRequest('/user/subscription/destroy', { id: item.id })
+              .then(function () {
+                adminUsers.forEach(function (user) {
+                  if (Array.isArray(user.subscription_profiles)) {
+                    user.subscription_profiles = user.subscription_profiles.filter(function (profile) { return String(profile.id) !== String(item.id); });
+                  }
+                });
+                profiles = profiles.filter(function (profile) { return String(profile.id) !== String(item.id); });
+                var target = document.querySelector('.vpscs-admin-subscriptions');
+                if (target) target.dataset.index = '0';
+                repaintSubscriptionPanel('已删除该订阅', 'ok');
+                scheduleUserListRefresh();
+              })
+              .catch(function (error) {
+                button.disabled = false;
+                subscriptionStatus(box, '删除失败：' + error.message, 'error');
+              });
+          }
+        });
+      }
+      // 新版后台的「编辑」是右侧抽屉，没有 .el-dialog__body，得自己找滚动容器，
+      // 否则面板被塞进抽屉根节点、顶到视口外看不见。
+      function dialogScrollBody(dialog) {
+        var body = dialog.querySelector('.el-dialog__body');
+        if (body) return body;
+        var nodes = Array.prototype.slice.call(dialog.querySelectorAll('*'));
+        for (var i = 0; i < nodes.length; i += 1) {
+          var node = nodes[i];
+          var style = window.getComputedStyle(node);
+          if ((style.overflowY === 'auto' || style.overflowY === 'scroll') && node.scrollHeight > node.clientHeight + 60) return node;
+        }
+        return dialog;
+      }
       function renderSubscriptionPicker() {
         var dialog = Array.from(document.querySelectorAll('[role="dialog"]')).find(function (item) { return /用户|订阅/.test(item.textContent); });
         if (!dialog) return;
@@ -447,172 +628,55 @@
           return;
         }
         var box = dialog.querySelector('.vpscs-admin-subscriptions');
-        // Rebuilding on every mutation used to reset the selection (and could
-        // loop forever because innerHTML itself is a mutation).  Rebuild only
-        // when the subscription set actually changes.
         var signature = subscriptionSignature(profiles);
-        if (box && box.dataset.signature === signature) return;
-        if (!box) { box = document.createElement('section'); box.className = 'vpscs-admin-subscriptions'; var body = dialog.querySelector('.el-dialog__body') || dialog; body.prepend(box); }
+        var index = box ? Math.min(Math.max(0, Number(box.dataset.index || 0)), profiles.length - 1) : 0;
+        if (box && box.dataset.signature === signature && box.dataset.index === String(index)) return;
+        if (!box) {
+          box = document.createElement('section');
+          box.className = 'vpscs-admin-subscriptions';
+          dialogScrollBody(dialog).prepend(box);
+        }
         box.dataset.signature = signature;
-        box.innerHTML = '<strong>订阅（共 ' + profiles.length + ' 条链接）</strong><select>' + profiles.map(function (item, index) { return '<option value="' + index + '">' + profileLabel(item, index) + '</option>'; }).join('') + '</select><div class="vpscs-admin-subscription-detail"></div>';
+        box.dataset.index = String(index);
+        box.innerHTML = '<strong>订阅（共 ' + profiles.length + ' 条链接）</strong><select></select><div class="vpscs-admin-subscription-detail"></div>';
         var select = box.querySelector('select');
-        function show() { var item = profiles[Number(select.value)] || {}; sessionStorage.setItem('vpscs_admin_subscription_id', item.id || ''); var used = (Number(item.u || 0) + Number(item.d || 0)) / 1073741824; var total = Number(item.transfer_enable || 0) / 1073741824; box.querySelector('.vpscs-admin-subscription-detail').innerHTML = '<div>当前操作目标：订阅' + profileNo(item, Number(select.value)) + '（' + (item.name || '订阅') + '，ID ' + item.id + '）</div><div>套餐：' + (item.plan && item.plan.name || '-') + '</div><div>流量：' + used.toFixed(2) + ' / ' + total.toFixed(2) + ' GB</div><div>到期：' + (item.expired_at ? new Date(Number(item.expired_at) * 1000).toLocaleDateString() : '长期有效') + '</div><input readonly value="' + (item.subscribe_url || '') + '">'; }
-        select.addEventListener('change', show); show();
+        profiles.forEach(function (item, i) {
+          var option = document.createElement('option');
+          option.value = String(i);
+          option.textContent = profileLabel(item, i);
+          if (i === index) option.selected = true;
+          select.appendChild(option);
+        });
+        select.addEventListener('change', function () {
+          var next = Math.max(0, Math.min(Number(select.value) || 0, profiles.length - 1));
+          box.dataset.index = String(next);
+          paintSubscriptionDetail(box, next);
+        });
+        paintSubscriptionDetail(box, index);
       }
 
       // Users who bought several plans get independent subscription rows.
       // The list itself only prints the primary plan, so add a compact picker
       // to that cell; the selected id is what the mutation hooks below target.
+      // 后台实际把登录票据放在 VUE_NAIVE_ACCESS_TOKEN（值是 {value: 'xx|yy'}）；
+      // 早期版本叫 XBOARD_ACCESS_TOKEN，两个都认，免得换个版本就读不到。
       function adminToken() {
-        try { return JSON.parse(localStorage.getItem('XBOARD_ACCESS_TOKEN') || '{}').value || ''; } catch (_) { return ''; }
-      }
-
-      function renderRowSubscriptionPickers() {
-        if (!adminUsers.length) {
-          if (!document.querySelector('#root table')) return;
-          loadAdminUsers(adminToken());
-          return;
+        var keys = ['VUE_NAIVE_ACCESS_TOKEN', 'XBOARD_ACCESS_TOKEN'];
+        for (var i = 0; i < keys.length; i += 1) {
+          var raw = localStorage.getItem(keys[i]);
+          if (!raw) continue;
+          var parsed = raw;
+          try { parsed = JSON.parse(raw); } catch (_) {}
+          if (parsed && typeof parsed === 'object') parsed = parsed.value || parsed.token || '';
+          var value = String(parsed || '').trim();
+          if (value) return value;
         }
-        // The admin page can hold more than one table (sticky header copies,
-        // statistics panels).  Pick the one whose head actually has both an
-        // email and a subscription column.
-        var tables = Array.prototype.slice.call(document.querySelectorAll('#root table'));
-        var table = null;
-        var index = -1;
-        var emailIndex = -1;
-        var expiryIndex = -1;
-        tables.forEach(function (candidate) {
-          if (table) return;
-          var headers = Array.prototype.slice.call(candidate.querySelectorAll('thead th'));
-          if (!headers.length) return;
-          var subscriptionIndex = -1;
-          var mailIndex = -1;
-          var expireColumn = -1;
-          headers.forEach(function (th, i) {
-            var text = th.textContent.replace(/\s+/g, '');
-            if (subscriptionIndex === -1 && /订阅|subscription/i.test(text)) subscriptionIndex = i;
-            if (mailIndex === -1 && /邮箱|email/i.test(text)) mailIndex = i;
-            if (expireColumn === -1 && /接近时间|到期时间|过期时间|expire/i.test(text)) expireColumn = i;
-          });
-          if (subscriptionIndex !== -1) {
-            table = candidate;
-            index = subscriptionIndex;
-            emailIndex = mailIndex;
-            expiryIndex = expireColumn;
-          }
-        });
-        if (!table || index === -1) return;
-        Array.prototype.slice.call(table.querySelectorAll('tbody tr')).forEach(function (row) {
-          var cell = row.children[index];
-          if (!cell) return;
-          // Read the email from its own cell: the row text glues the ID in front
-          // of it and the device counter behind it ("1admin@admin.com0 / 10").
-          var emailCell = emailIndex >= 0 ? row.children[emailIndex] : null;
-          var emailMatch = ((emailCell && emailCell.textContent) || row.textContent || '').match(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/);
-          if (!emailMatch) return;
-          var user = adminUsers.find(function (item) { return item.email === emailMatch[0]; });
-          var items = liveProfiles(user && Array.isArray(user.subscription_profiles) ? user.subscription_profiles : []);
-          // Row actions (reset password, edit, delete) must target the row the
-          // administrator clicked, otherwise a previously selected subscription
-          // from another user would be rewritten into the request.
-          if (row.dataset.vpscsSubBound !== '1') {
-            row.dataset.vpscsSubBound = '1';
-            row.addEventListener('click', function () {
-              var active = row.querySelector('.vpscs-row-sub-item.is-active');
-              var id = active ? active.dataset.subId : String((items[0] || {}).id || '');
-              if (id) sessionStorage.setItem('vpscs_admin_subscription_id', id);
-            }, true);
-          }
-          var existing = cell.querySelector('.vpscs-row-sub');
-          var expiryCell = expiryIndex >= 0 ? row.children[expiryIndex] : null;
-          if (items.length < 2) {
-            if (existing) existing.remove();
-            restoreRowExpiry(expiryCell);
-            return;
-          }
-          var signature = subscriptionSignature(items);
-          // 到期时间/流量被改过以后，清单里的备注号和日期要跟着变，不能等刷新页面。
-          if (existing) {
-            if (existing.dataset.signature === signature) {
-              syncRowExpiry(expiryCell, items);
-              return;
-            }
-            fillRowPicker(existing, items, signature, expiryCell);
-            return;
-          }
-          var wrap = document.createElement('div');
-          wrap.className = 'vpscs-row-sub';
-          fillRowPicker(wrap, items, signature, expiryCell);
-          cell.appendChild(wrap);
-        });
+        return '';
       }
-
-      // ---- 行内订阅清单：多条订阅全部平铺，点哪条就以哪条为操作对象 ----
-      // 之前是一个 <select>，只能看到当前选中的一条；现在每条订阅独立一行，
-      // 各自带着到期时间和已用流量，切换后「接近时间」列也换成该订阅的日期。
-      function rowSubItemHtml(item, index, active) {
-        return '<button type="button" class="vpscs-row-sub-item' + (active ? ' is-active' : '') + '" data-sub-id="' + escapeAttr(item.id) + '" data-sub-index="' + index + '">'
-          + '<span class="vpscs-row-sub-no">订阅' + profileNo(item, index) + '</span>'
-          + '<span class="vpscs-row-sub-name">' + escapeAttr(item.name || '订阅') + '</span>'
-          + '<span class="vpscs-row-sub-meta">' + profileDay(item) + ' · ' + profileTraffic(item) + '</span>'
-          + '</button>';
-      }
-      function escapeAttr(value) {
-        return String(value == null ? '' : value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-      }
-      // 单元格里可能包着 <span>/<button>，只替换最深的那段文字，保留原有样式。
-      function setCellText(cell, text) {
-        if (!cell) return;
-        var walker = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT, null);
-        var node; var target = null;
-        while ((node = walker.nextNode())) { if (/\S/.test(node.nodeValue)) target = node; }
-        if (target) target.nodeValue = text; else cell.textContent = text;
-      }
-      function restoreRowExpiry(cell) {
-        if (!cell || cell.dataset.vpscsExpiryOriginal === undefined) return;
-        setCellText(cell, cell.dataset.vpscsExpiryOriginal);
-        delete cell.dataset.vpscsExpiryOriginal;
-        cell.removeAttribute('title');
-        cell.classList.remove('is-sub-date');
-      }
-      // 「接近时间」列跟随当前选中的订阅；原来那格是主账号的日期，先存起来以便还原。
-      function syncRowExpiry(cell, items, forceId) {
-        if (!cell) return;
-        var wrap = cell.closest('tr') && cell.closest('tr').querySelector('.vpscs-row-sub');
-        var active = wrap && wrap.querySelector('.vpscs-row-sub-item.is-active');
-        var id = forceId || (active && active.dataset.subId);
-        var item = null;
-        for (var i = 0; i < items.length; i += 1) { if (String(items[i].id) === String(id)) { item = items[i]; break; } }
-        if (!item) return;
-        if (cell.dataset.vpscsExpiryOriginal === undefined) cell.dataset.vpscsExpiryOriginal = cell.textContent.trim();
-        setCellText(cell, profileDay(item));
-        cell.title = '显示的是所选订阅（订阅' + profileNo(item, 0) + '）的到期时间';
-        cell.classList.add('is-sub-date');
-      }
-
-      function fillRowPicker(wrap, items, signature, expiryCell) {
-        var previous = wrap.querySelector('.vpscs-row-sub-item.is-active');
-        var keep = previous ? previous.dataset.subId : '';
-        var keepAlive = items.some(function (item) { return String(item.id) === keep; });
-        var chosen = keepAlive ? keep : String((items[0] || {}).id || '');
-        wrap.dataset.signature = signature;
-        wrap.innerHTML = '<div class="vpscs-row-sub-head">订阅 ' + items.length + ' 条 · 点一条切换操作对象</div>'
-          + items.map(function (item, i) { return rowSubItemHtml(item, i, String(item.id) === chosen); }).join('');
-        wrap.querySelectorAll('.vpscs-row-sub-item').forEach(function (button) {
-          button.addEventListener('click', function (event) {
-            event.preventDefault();
-            event.stopPropagation();
-            var id = button.dataset.subId;
-            wrap.querySelectorAll('.vpscs-row-sub-item').forEach(function (other) {
-              other.classList.toggle('is-active', other === button);
-            });
-            sessionStorage.setItem('vpscs_admin_subscription_id', id);
-            syncRowExpiry(expiryCell, items, id);
-          });
-        });
-        // 选中的订阅到期被隐藏时，把操作目标挪到第一条，别让请求打到过期档案上。
-        sessionStorage.setItem('vpscs_admin_subscription_id', chosen);
-        syncRowExpiry(expiryCell, items, chosen);
+      // sanctum 只认 `Authorization: Bearer <token>`，裸 token 一律 401。
+      function authHeader(token) {
+        if (!token) return '';
+        return /^Bearer\s/i.test(token) ? token : 'Bearer ' + token;
       }
 
       // The admin list sometimes renders before our capture hooks see the
@@ -625,7 +689,7 @@
         var secure = (window.settings && window.settings.secure_path) || '';
         if (!token || !secure) return;
         nativeFetch('/api/v2/' + secure + '/user/fetch?current=1&pageSize=100', {
-          headers: { Authorization: token, 'Content-Language': 'zh-CN' },
+          headers: { Authorization: authHeader(token), 'Content-Language': 'zh-CN' },
           credentials: 'same-origin',
         }).then(function (response) { return response.text(); }).then(applyUserListText).catch(function () {});
       }
@@ -654,7 +718,7 @@
       }
 
       function ticketRequest(method, path, body) {
-        var headers = { Authorization: adminToken(), 'Content-Language': 'zh-CN' };
+        var headers = { Authorization: authHeader(adminToken()), 'Content-Language': 'zh-CN' };
         if (body) headers['Content-Type'] = 'application/json';
         return nativeFetch(ticketEndpoint(path), {
           method: method,
@@ -858,8 +922,10 @@
       }
 
       function refreshAdminEnhancements() {
+        // 订阅面板的数据来自 /user/fetch（里面带 subscription_profiles），
+        // 列表还没加载完时先补一次请求，否则弹窗里没有可编辑的订阅。
+        if (!adminUsers.length) loadAdminUsers(adminToken());
         renderSubscriptionPicker();
-        renderRowSubscriptionPickers();
         renderTicketNotifier();
       }
       new MutationObserver(refreshAdminEnhancements).observe(document.body, { childList: true, subtree: true });
@@ -882,15 +948,22 @@
     .vpscs-admin-subscriptions { margin:0 0 18px; padding:14px; display:grid; gap:10px; border:1px solid var(--el-border-color); border-radius:9px; }
     .vpscs-admin-subscriptions select, .vpscs-admin-subscriptions input { min-height:38px; padding:0 10px; color:var(--el-text-color-primary); background:var(--el-bg-color); border:1px solid var(--el-border-color); border-radius:7px; }
     .vpscs-admin-subscription-detail { display:grid; gap:6px; }
-    .vpscs-row-sub { margin-top:6px; display:flex; flex-direction:column; gap:4px; max-width:240px; }
-    .vpscs-row-sub-head { font-size:11px; line-height:1.4; color:var(--el-text-color-secondary, #8a93a6); }
-    .vpscs-row-sub-item { display:flex; flex-wrap:wrap; align-items:center; gap:6px; width:100%; padding:4px 8px; font-size:12px; line-height:1.5; text-align:left; cursor:pointer; color:var(--el-text-color-primary, #dbe4f2); background:var(--el-bg-color, #101a2b); border:1px solid var(--el-border-color, #2b3a52); border-radius:6px; }
-    .vpscs-row-sub-item:hover { border-color:#7c5cff88; }
-    .vpscs-row-sub-item.is-active { border-color:#7c5cff; background:rgba(124,92,255,.16); box-shadow:0 0 0 2px rgba(124,92,255,.18); }
-    .vpscs-row-sub-no { font-weight:600; }
-    .vpscs-row-sub-name { max-width:130px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .vpscs-row-sub-meta { flex-basis:100%; font-size:11px; color:var(--el-text-color-secondary, #8a93a6); font-variant-numeric:tabular-nums; }
-    td.is-sub-date { text-decoration:underline dotted currentColor; text-underline-offset:3px; }
+    .vpscs-sub-line { display:flex; flex-wrap:wrap; align-items:center; gap:8px; font-size:12.5px; line-height:1.6; }
+    .vpscs-sub-line.is-strong { font-weight:600; }
+    .vpscs-sub-line.is-muted { color:var(--el-text-color-secondary, #8a93a6); font-size:12px; }
+    .vpscs-sub-key { min-width:34px; color:var(--el-text-color-secondary, #8a93a6); }
+    .vpscs-sub-edit input { min-height:32px; height:32px; padding:0 8px; width:92px; }
+    .vpscs-sub-edit button { min-height:32px; padding:0 10px; font-size:12px; cursor:pointer; color:var(--el-text-color-primary, #dbe4f2); background:transparent; border:1px solid var(--el-border-color, #2b3a52); border-radius:7px; }
+    .vpscs-sub-edit button:hover:not(:disabled) { border-color:#7c5cff; color:#a793ff; }
+    .vpscs-sub-edit button.is-primary { border-color:#7c5cff; background:rgba(124,92,255,.16); }
+    .vpscs-sub-edit button.is-danger { border-color:rgba(240,89,107,.55); color:#f0596b; }
+    .vpscs-sub-edit button.is-danger:hover:not(:disabled) { background:rgba(240,89,107,.14); }
+    .vpscs-sub-edit button:disabled { opacity:.55; cursor:not-allowed; }
+    .vpscs-sub-unit { color:var(--el-text-color-secondary, #8a93a6); }
+    .vpscs-sub-url { width:100%; min-height:34px; }
+    .vpscs-sub-status { min-height:16px; font-size:12px; color:var(--el-text-color-secondary, #8a93a6); }
+    .vpscs-sub-status.is-ok { color:#12b886; }
+    .vpscs-sub-status.is-error { color:#f0596b; }
     /* 工单邮件通知卡片 */
     .vpscs-tn { margin:0 0 18px; padding:16px 18px; display:grid; gap:10px; border:1px solid hsl(var(--border, 214 20% 28%)); border-radius:12px; background:hsl(var(--card, 222 30% 13%)); color:hsl(var(--card-foreground, 210 30% 92%)); }
     .vpscs-tn-head { display:flex; align-items:center; gap:10px; }

@@ -144,6 +144,8 @@ class AdminRoute
                 $router->post('/resetSecret', [UserController::class, 'resetSecret']);
                 $router->post('/setInviteUser', [UserController::class, 'setInviteUser']);
                 $router->post('/destroy', [UserController::class, 'destroy']);
+                $router->post('/subscription/update', [UserController::class, 'updateSubscription']);
+                $router->post('/subscription/destroy', [UserController::class, 'destroySubscription']);
             });
 
             // Stat
