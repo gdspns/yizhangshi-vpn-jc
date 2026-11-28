@@ -140,36 +140,39 @@
     .vpscs-shelf-group-title { font-size: 17px; }
   }
 
-  /* 用户个人中心：四张卡片从竖排全宽改为两栏网格，避免被撑得空旷难看 */
+  /* 用户个人中心：钱包 / 修改密码 / 通知 / 重置订阅 四张卡片一行 4 列横向排列 */
   body.vpscs-profile-page section.cus-scroll-y {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 20px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
     align-content: start;
     align-items: stretch;
     width: 100%;
-    max-width: 1060px;
+    max-width: 1440px;
     margin: 0 auto;
     padding: 20px 18px 46px;
     box-sizing: border-box;
   }
   body.vpscs-profile-page section.cus-scroll-y > .n-card { margin-top: 0 !important; }
-  /* 钱包（1）与重置订阅（4）横跨两栏；修改密码（2）、通知（3）并排 */
-  body.vpscs-profile-page section.cus-scroll-y > .n-card:nth-child(1),
-  body.vpscs-profile-page section.cus-scroll-y > .n-card:nth-child(4) { grid-column: 1 / -1; }
   body.vpscs-profile-page section.cus-scroll-y > .n-back-top-placeholder { grid-column: 1 / -1; height: 0; min-height: 0; }
-  /* 半宽卡片里的表单占满栏宽，不再留 500px 硬上限 */
-  body.vpscs-profile-page section.cus-scroll-y > .n-card:nth-child(2) .max-w-125,
-  body.vpscs-profile-page section.cus-scroll-y > .n-card:nth-child(3) .max-w-125 { max-width: none; }
+  /* 卡片里的表单占满栏宽，不再留 500px 硬上限 */
+  body.vpscs-profile-page section.cus-scroll-y .max-w-125 { max-width: none; }
   /* 钱包卡片内容上下收紧凑一点 */
   body.vpscs-profile-page section.cus-scroll-y > .n-card:nth-child(1) .n-card__content > div:first-child { margin: 4px 0 6px; }
-  @media (max-width: 900px) {
+  /* 重置订阅卡片里的选择框占满栏宽 */
+  body.vpscs-profile-page section.cus-scroll-y .vpscs-reset-pick { max-width: none; }
+  @media (max-width: 1280px) {
+    body.vpscs-profile-page section.cus-scroll-y { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 760px) {
     body.vpscs-profile-page section.cus-scroll-y { grid-template-columns: 1fr; }
   }
   /* 重置订阅的订阅选择框（深浅主题都适配） */
   .vpscs-reset-pick { display: flex; align-items: center; gap: 10px; margin: 2px 0 14px; max-width: 560px; font-size: 13px; }
   .vpscs-reset-pick > span { white-space: nowrap; color: rgba(128, 128, 128, .95); }
   .vpscs-reset-pick select { flex: 1; min-width: 0; min-height: 36px; padding: 0 10px; border: 1px solid rgba(128, 128, 128, .45); border-radius: 8px; background: rgba(128, 128, 128, .08); color: inherit; font-size: 13px; outline: none; }
+  /* 原生下拉展开后的选项：显式指定深底浅字，避免浅色文字落在浅色底上看不清 */
+  .vpscs-reset-pick option { background: #23252e; color: #e6e8f0; }
   .vpscs-reset-note { margin-top: 10px; min-height: 18px; font-size: 13px; color: #34c37a; }
 
   /* 套餐详情：付款周期提到页面最顶部整行横向排列，勾选态用圆形对号表达 */
@@ -1013,7 +1016,7 @@
     .vpscs-rc-balance { margin:2px 0 14px; font-size:13px; color:#9aa0b4; }
     .vpscs-rc-amount { width:100%; box-sizing:border-box; padding:13px 14px; border:1px solid #3d3f4e; border-radius:10px; background:#24252e; color:#fff; font-size:22px; font-weight:700; text-align:center; outline:none; }
     .vpscs-rc-amount:focus { border-color:#7c3aed; }
-    .vpscs-rc-fixed { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:14px; }
+    .vpscs-rc-fixed { display:flex; gap:10px; margin-top:14px; }
     .vpscs-rc-fixed button { flex:1; min-height:42px; border:1px solid #3d3f4e; border-radius:10px; background:#24252e; color:#d6d9e6; font-size:15px; font-weight:700; cursor:pointer; }
     .vpscs-rc-fixed button:hover { border-color:#7c3aed; color:#fff; }
     .vpscs-rc-fixed button.is-active { border-color:#7c3aed; background:#31224d; color:#fff; }
@@ -1153,7 +1156,7 @@
       return modal.querySelector('[data-rc-body]');
     }
 
-    function stepAmount() {
+    function stepAmount(prefill) {
       state.paid = false;
       var body = buildModal();
       body.innerHTML =
@@ -1187,6 +1190,12 @@
         state.amount = Math.round(value * 100) / 100;
         stepMethods();
       });
+      // 从钱包卡片的快捷金额按钮进来时，直接带入选中金额
+      if (prefill) {
+        input.value = String(prefill);
+        var preset = body.querySelector('[data-rc-fixed="' + prefill + '"]');
+        if (preset) preset.classList.add('is-active');
+      }
       input.focus();
     }
 
@@ -1358,7 +1367,7 @@
       body.querySelector('[data-rc-finish]').addEventListener('click', function () { closeModal(); });
     }
 
-    // ---- 往「我的钱包」卡片塞充值按钮（放在余额下方，而不是卡片右上角） ----
+    // ---- 往「我的钱包」卡片塞充值按钮（放在余额下方） ----
     function injectButton() {
       if (!document.body) return;
       var cards = document.querySelectorAll('.n-card');
@@ -1368,10 +1377,13 @@
         var isWallet = text.indexOf('我的钱包') !== -1 || text.indexOf('My Wallet') !== -1;
         var hasBalance = text.indexOf('账户余额') !== -1 || text.indexOf('Account Balance') !== -1 || text.indexOf('余额') !== -1;
         if (!isWallet || !hasBalance) continue;
-        // 头部旧的按钮位置清掉（老版本曾把按钮放在 header extra）
+        // 头部旧的按钮位置清掉（更早版本曾把按钮放在 header extra）
         Array.prototype.forEach.call(card.querySelectorAll('.n-card-header [data-vpscs-recharge]'), function (stale) { stale.remove(); });
         var host = card.querySelector('.n-card__content');
-        if (!host || host.querySelector('[data-vpscs-recharge]')) continue;
+        if (!host) continue;
+        // 快捷金额行已下线（弹窗里已有固定金额），出现即清掉
+        Array.prototype.forEach.call(host.querySelectorAll('.vpscs-rc-quick'), function (stale) { stale.remove(); });
+        if (host.querySelector('[data-vpscs-recharge]')) continue;
         var button = document.createElement('button');
         button.type = 'button';
         button.className = 'vpscs-rc-btn vpscs-rc-wallet-btn';
