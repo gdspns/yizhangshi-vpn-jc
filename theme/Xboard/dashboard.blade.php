@@ -252,11 +252,25 @@
 
       function escapeHtml(value) { var div = document.createElement('div'); div.textContent = value; return div.innerHTML; }
 
+      // Xboard 的 storage 封装 getKey() 会 toUpperCase()，实际 key 是全大写的
+      // VUE_NAIVE_ACCESS_TOKEN，值形如 {"value":"<token>","time":...,"expire":...}。
+      // 按驼峰 key 去读永远是 null，请求就不带 Authorization，接口一律 403。
       function storedAccessToken() {
-        var token = localStorage.getItem('Vue_Naive_access_token') || localStorage.getItem('access_token') || '';
+        var raw = '';
         try {
-          var saved = JSON.parse(token);
-          token = saved && typeof saved === 'object' ? (saved.value || '') : saved;
+          for (var i = 0; i < localStorage.length; i += 1) {
+            var key = localStorage.key(i) || '';
+            if (key.toUpperCase() === 'VUE_NAIVE_ACCESS_TOKEN') { raw = localStorage.getItem(key) || ''; break; }
+          }
+        } catch (_) {}
+        if (!raw) raw = localStorage.getItem('access_token') || localStorage.getItem('Vue_Naive_access_token') || '';
+        var token = raw;
+        try {
+          var saved = JSON.parse(raw);
+          if (saved && typeof saved === 'object') {
+            if (saved.expire && Number(saved.expire) <= Date.now()) return '';
+            token = typeof saved.value === 'string' ? saved.value : '';
+          }
         } catch (_) {}
         return typeof token === 'string' ? token : '';
       }
