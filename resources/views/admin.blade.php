@@ -745,15 +745,25 @@
           }
         });
 
-        // 放在页面标题下面，找不到标题就放在表格上方。
+        // 放在「页面标题 + 说明」那一行的下面，找不到就放在表格上方。
+        // 用标题和表格的公共祖先当页面容器，避免插进 flex 标题行里把布局挤乱。
         var heading = Array.prototype.slice.call(document.querySelectorAll('#root h1, #root h2, #root h3, #root [class*="text-xl"], #root [class*="text-2xl"]'))
           .find(function (node) { return node.textContent.trim() === '工单管理' && !node.closest('aside,nav'); });
-        var block = heading;
-        if (heading && heading.parentElement && heading.parentElement.textContent.replace(/\s+/g, '').length <= 160) {
-          block = heading.parentElement;
+        var container = table;
+        if (heading) {
+          while (container && container !== document.body && !container.contains(heading)) {
+            container = container.parentElement;
+          }
         }
-        if (block && block.parentNode) block.parentNode.insertBefore(panel, block.nextSibling);
-        else table.parentNode.insertBefore(panel, table);
+        if (heading && container && container !== document.body && container.id !== 'root' && container.children.length > 1) {
+          var headerBlock = null;
+          Array.prototype.forEach.call(container.children, function (child) {
+            if (!headerBlock && child.contains(heading)) headerBlock = child;
+          });
+          container.insertBefore(panel, headerBlock ? headerBlock.nextSibling : container.firstChild);
+        } else {
+          table.parentNode.insertBefore(panel, table);
+        }
         return panel;
       }
 
