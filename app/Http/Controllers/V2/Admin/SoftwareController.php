@@ -30,8 +30,6 @@ class SoftwareController extends Controller
             'macos_download_url' => 'nullable|url:https|max:2000',
             'update_notes' => 'nullable|string|max:3000',
             'force_update' => 'required|boolean',
-            'emergency_nodes_enabled' => 'required|boolean',
-            'emergency_subscription_url' => 'nullable|url:https|max:4000',
         ]);
 
         $data['api_domain'] = preg_replace('#^https?://#i', '', trim($data['api_domain'] ?? ''));
@@ -39,15 +37,12 @@ class SoftwareController extends Controller
         if ($data['update_enabled'] && (!$data['latest_version'] || empty($data['windows_download_url']))) {
             return response()->json(['message' => '启用更新前请填写版本号和 Windows HTTPS 下载地址'], 422);
         }
-        if ($data['emergency_nodes_enabled'] && empty($data['emergency_subscription_url'])) {
-            return response()->json(['message' => '启用应急节点前请填写 HTTPS 订阅地址'], 422);
-        }
         $data['updated_at'] = now();
         DB::table('software_settings')->updateOrInsert(['id' => 1], $data);
         return $this->config();
     }
 
-    public function telemetry(Request $request)
+    public function telemetry()
     {
         $users = DB::table('software_online_users')->orderByDesc('last_seen')->limit(500)->get();
         $cutoff = now()->subSeconds(90);
@@ -55,16 +50,6 @@ class SoftwareController extends Controller
             $user->online = (bool) $user->is_online && Carbon::parse($user->last_seen)->gte($cutoff);
             return $user;
         });
-        $logs = $request->boolean('include_logs', true)
-            ? DB::table('software_subscription_logs')->orderByDesc('first_seen')->limit(1000)->get()
-            : [];
-        return $this->success(['users' => $users, 'subscription_logs' => $logs]);
-    }
-
-    public function deleteSubscription(Request $request)
-    {
-        $data = $request->validate(['id' => 'required|uuid']);
-        DB::table('software_subscription_logs')->where('id', $data['id'])->delete();
-        return $this->success(true);
+        return $this->success(['users' => $users]);
     }
 }

@@ -221,7 +221,7 @@
       --ring: 221 83% 58%;
     }
   </style>
-  <link rel="stylesheet" href="/assets/software-admin.css?v=20261127.3">
+  <link rel="stylesheet" href="/assets/software-admin.css?v=20261128.1">
 </head>
 
 <body>
@@ -482,10 +482,10 @@
   <script>
     window.vpscsSoftwareAdmin = {
       apiBase: @json('/api/v2/' . $secure_path . '/software'),
-      version: '2026.11.27.3'
+      version: '2026.11.28.1'
     };
   </script>
-  <script defer src="/assets/software-admin.js?v=20261127.3"></script>
+  <script defer src="/assets/software-admin.js?v=20261128.1"></script>
 </body>
 
 </html>

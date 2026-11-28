@@ -55,15 +55,9 @@ class SoftwareController extends Controller
                     ->update(['is_online' => false, 'last_seen' => now()]);
             }
         } else {
-            abort_if(empty($data['subscription_url']), 422, '缺少订阅链接');
-            DB::table('software_subscription_logs')->insertOrIgnore([
-                'id' => (string) Str::uuid(),
-                'subscription_url' => $data['subscription_url'],
-                'subscription_label' => $data['label'] ?? '',
-                'user_identifier' => $data['identifier'] ?? '',
-                'ip_address' => $ip,
-                'first_seen' => now(),
-            ]);
+            // 「第三方订阅日志」模块已下线：客户端仍可能上报 record-subscription，
+            // 这里只回成功以保持旧版客户端兼容，不再写入 software_subscription_logs。
+            return $this->success(true);
         }
         return $this->success(true);
     }
