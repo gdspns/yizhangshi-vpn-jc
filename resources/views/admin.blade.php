@@ -314,6 +314,21 @@
       var nativeFetch = window.fetch.bind(window);
       var profiles = [];
       var adminUsers = [];
+      // The admin bundle talks to the API through axios (fetch adapter in some
+      // builds) and the browser's XHR in others.  Both paths feed this helper,
+      // otherwise the user table never receives subscription_profiles and no
+      // per-row picker can be built.
+      function applyUserList(payload) {
+        if (!payload) return;
+        var data = payload.data;
+        var list = Array.isArray(data) ? data : (data && Array.isArray(data.data) ? data.data : null);
+        if (!list || !list.length) return;
+        adminUsers = list;
+        refreshAdminEnhancements();
+      }
+      function applyUserListText(text) {
+        try { applyUserList(JSON.parse(text)); } catch (_) {}
+      }
       window.fetch = function (input, init) {
         var url = typeof input === 'string' ? input : input.url;
         var selectedId = sessionStorage.getItem('vpscs_admin_subscription_id');
@@ -335,6 +350,7 @@
             profiles = payload.data && payload.data.subscription_profiles || [];
             refreshAdminEnhancements();
           }).catch(function () {});
+          if (/user\/fetch/i.test(url)) response.clone().text().then(applyUserListText).catch(function () {});
           return response;
         });
       };
@@ -355,10 +371,11 @@
         this.__vpscsUrl = nextUrl;
         this.addEventListener('load', function () {
           if (!/\/user\/fetch/i.test(this.__vpscsUrl || '')) return;
+          // axios may request responseType=json; reading responseText then throws
+          // (InvalidStateError), which used to leave the table without data.
           try {
-            var payload = JSON.parse(this.responseText);
-            adminUsers = Array.isArray(payload.data) ? payload.data : (payload.data && payload.data.data || []);
-            refreshAdminEnhancements();
+            if (this.responseType === 'json' && this.response) { applyUserList(this.response); return; }
+            applyUserListText(this.responseText);
           } catch (_) {}
         });
         return nativeOpen.apply(this, [method, nextUrl].concat(Array.prototype.slice.call(arguments, 2)));
@@ -405,13 +422,24 @@
       // to that cell; the selected id is what the mutation hooks below target.
       function renderRowSubscriptionPickers() {
         if (!adminUsers.length) return;
-        var table = document.querySelector('#root table');
-        if (!table) return;
+        // The admin page can hold more than one table (sticky header copies,
+        // statistics panels).  Pick the one whose head actually has both an
+        // email and a subscription column.
+        var tables = Array.prototype.slice.call(document.querySelectorAll('#root table'));
+        var table = null;
         var index = -1;
-        Array.prototype.slice.call(table.querySelectorAll('thead th')).forEach(function (th, i) {
-          if (index === -1 && th.textContent.replace(/\s+/g, '').indexOf('订阅') !== -1) index = i;
+        tables.forEach(function (candidate) {
+          if (table) return;
+          var headers = Array.prototype.slice.call(candidate.querySelectorAll('thead th'));
+          if (!headers.length) return;
+          var subscriptionIndex = -1;
+          headers.forEach(function (th, i) {
+            var text = th.textContent.replace(/\s+/g, '');
+            if (subscriptionIndex === -1 && /订阅|subscription/i.test(text)) subscriptionIndex = i;
+          });
+          if (subscriptionIndex !== -1) { table = candidate; index = subscriptionIndex; }
         });
-        if (index === -1) return;
+        if (!table || index === -1) return;
         Array.prototype.slice.call(table.querySelectorAll('tbody tr')).forEach(function (row) {
           var cell = row.children[index];
           if (!cell) return;
@@ -431,11 +459,11 @@
               if (id) sessionStorage.setItem('vpscs_admin_subscription_id', id);
             }, true);
           }
-          if (items.length < 2 || cell.querySelector('.vpscs-row-sub')) return;
+          if (items.length < 1 || cell.querySelector('.vpscs-row-sub')) return;
           var wrap = document.createElement('div');
           wrap.className = 'vpscs-row-sub';
           var select = document.createElement('select');
-          select.title = '选择要管理的订阅';
+          select.title = '选择要管理的订阅（共 ' + items.length + ' 条）';
           items.forEach(function (item, i) {
             var option = document.createElement('option');
             option.value = String(item.id || '');

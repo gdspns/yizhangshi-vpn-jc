@@ -113,11 +113,45 @@
   body.vpscs-shelf-mode .card-container > .card-item,
   html body.vpscs-shelf-mode .card-container,
   body.vpscs-shelf-mode [data-vpscs-native-grid] { display: none !important; }
-  .vpscs-plan-shelf { margin-top: 4px; }
   .vpscs-plan-shelf .vl-plan { cursor: pointer; transition: transform .2s, border-color .2s; }
   .vpscs-plan-shelf .vl-plan:hover { transform: translateY(-2px); }
   .vpscs-plan-shelf .vl-btn { width: 100%; border: 0; cursor: pointer; font-family: inherit; font-size: 16px; }
   .vl-plan-benefits .is-off { color: #6b7280; }
+
+  /* 用户中心「购买订阅」：与着陆页同一套居中版式，周期 / 一次性分成上下两组 */
+  .vpscs-shelf { width: min(1120px, 100%); margin: 0 auto; padding: 6px 16px 46px; box-sizing: border-box; }
+  .vpscs-shelf-head { max-width: 720px; margin: 10px auto 30px; text-align: center; }
+  .vpscs-shelf-head .vl-h2 { margin: 0 0 10px; }
+  .vpscs-shelf-head .vl-sub { margin: 0 auto 22px; }
+  .vpscs-shelf-head .vl-plan-filter { margin-bottom: 0; }
+  .vpscs-shelf-group { margin: 0 0 40px; }
+  .vpscs-shelf-group:last-child { margin-bottom: 0; }
+  .vpscs-shelf-group-title { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0 2px 16px; color: #eef4f0; font-size: 20px; font-weight: 800; letter-spacing: -.02em; }
+  .vpscs-shelf-group-title > span { color: #82958a; font-size: 13px; font-weight: 500; letter-spacing: 0; }
+  .vpscs-shelf-group .vl-plans { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .vpscs-shelf .vl-plan { min-height: 0; }
+  .vpscs-shelf .vl-plan-benefits { min-height: 120px; }
+  body.vpscs-plan-page .vpscs-native-heading,
+  body.vpscs-plan-page #app .n-base-segmented { display: none !important; }
+  @media (max-width: 1000px) { .vpscs-shelf-group .vl-plans { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 680px) {
+    .vpscs-shelf { padding: 4px 14px 34px; }
+    .vpscs-shelf-group .vl-plans { grid-template-columns: 1fr; }
+    .vpscs-shelf-group-title { font-size: 17px; }
+  }
+
+  /* 套餐详情：付款周期上移并横向排列，勾选态用圆形对号表达 */
+  body.vpscs-period-moved .vpscs-period-anchor { display: flex; flex-direction: column; }
+  body.vpscs-period-moved .vpscs-period-anchor > .vpscs-period-card { order: -1; }
+  .vpscs-period-card .n-card__content { display: grid !important; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); gap: 10px; padding: 14px 16px !important; }
+  .vpscs-period-card .n-card__content hr { display: none !important; }
+  .vpscs-period-card .n-card__content > div { min-width: 0; box-sizing: border-box; }
+  .vpscs-period-row { width: 100%; box-sizing: border-box; display: grid !important; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 9px; padding: 12px 13px !important; border-radius: 12px !important; border-width: 1px !important; border-color: #2c3b33 !important; background: #141b17; white-space: nowrap; transition: background .18s ease, border-color .18s ease; }
+  .vpscs-period-row::before { content: ''; width: 18px; height: 18px; box-sizing: border-box; border-radius: 50%; border: 1.5px solid #46584d; background: transparent; }
+  .vpscs-period-row[class~="border-primary"] { background: #16241c !important; border-color: #4fbd80 !important; }
+  .vpscs-period-row[class~="border-primary"]::before { content: '✓'; display: grid; place-items: center; color: #06100a; border-color: #4fbd80; background: #4fbd80; font-size: 12px; font-weight: 900; line-height: 1; }
+  .vpscs-period-row > div { min-width: 0; white-space: nowrap; }
+  @media (max-width: 680px) { .vpscs-period-card .n-card__content { grid-template-columns: 1fr 1fr; } }
   @media (max-width: 820px) {
     .vl-hero-in { grid-template-columns: 1fr; text-align: center; }
     .vl-lead { margin-inline: auto; }
@@ -393,54 +427,36 @@
       }
       syncLandingAuth();
 
-      // Rename the legacy filter label without altering internal period keys.
+      // The app's own labels get a light touch-up (detail / close actions), while
+      // the plan shelf is re-painted on every relevant DOM change.
       new MutationObserver(function () {
         document.querySelectorAll('label,button,span').forEach(function (node) {
           var label = node.childElementCount === 0 ? node.textContent.trim() : '';
           var action = node.closest('button,a');
           if (action && ['查看', '查看详情'].includes(label)) action.classList.add('vpscs-action-view');
           if (action && ['关闭', '取消'].includes(label)) action.classList.add('vpscs-action-danger');
-          if (label === '按流量') node.textContent = '一次性套餐';
-          if (label === '购买订阅') {
-            node.textContent = '购买新订阅';
-            node.closest('button,a')?.addEventListener('click', function () { clearRenew(); }, { once: true });
-          }
         });
-        enforcePlanGrid();
+        syncPlanShelf();
+        enhancePlanPeriod();
         renderSubscriptionList();
         pruneShortcutRows();
       }).observe(document.getElementById('app'), { childList: true, subtree: true });
 
-      function enforcePlanGrid() {
-        if (!/^#\/plan(?:\?|$)/i.test(location.hash)) return;
-        var grid = document.querySelector('#app .card-container');
-        if (!grid) return;
-        var columns = innerWidth <= 680 ? 1 : (innerWidth <= 1000 ? 2 : 3);
-        grid.style.setProperty('display', 'grid', 'important');
-        grid.style.setProperty('grid-template-columns', 'repeat(' + columns + ', minmax(0, 1fr))', 'important');
-        Array.from(grid.children).forEach(function (item) {
-          item.style.setProperty('width', 'auto', 'important');
-          item.style.setProperty('min-width', '0', 'important');
-          var card = item.querySelector('.n-card');
-          if (card) card.style.setProperty('width', '100%', 'important');
-        });
-      }
-      addEventListener('resize', enforcePlanGrid, { passive: true });
-      addEventListener('hashchange', function () { setTimeout(enforcePlanGrid, 0); });
-
       // 用户中心「购买订阅」：隐藏应用原生卡片，用与着陆页完全相同的模板重绘。
       var shelfPlans = null;
       var shelfLoading = false;
+      var shelfFilter = 'all';
 
       function planShelfMode() { return /^#\/plan\/?$/.test(location.hash); }
+      function planDetailMode() { return /^#\/plan\/\d+/.test(location.hash); }
 
-      function shelfFilterMode() {
-        var items = Array.prototype.slice.call(document.querySelectorAll('.n-base-segmented-item'));
-        var index = -1;
-        items.forEach(function (item, i) {
-          if (item.classList.contains('n-base-segmented-item--active') || item.getAttribute('aria-checked') === 'true') index = i;
+      // 隐藏应用自带的标题与分段筛选器：版式改由与着陆页一致的区块接管。
+      function tagPlanChrome() {
+        if (!planShelfMode()) return;
+        Array.prototype.slice.call(document.querySelectorAll('#app h2')).forEach(function (heading) {
+          if (heading.classList.contains('vl-h2') || heading.closest('.vpscs-shelf')) return;
+          if (heading.textContent.replace(/\s+/g, '').indexOf('选择最适合') === 0) heading.classList.add('vpscs-native-heading');
         });
-        return index === 1 ? 'period' : (index === 2 ? 'onetime' : 'all');
       }
 
       // The app re-renders its own grid on every filter/sort change, so the
@@ -463,29 +479,51 @@
       }
 
       var shelfPaintedKey = '';
+      function shelfHeadHtml() {
+        var options = [['all', '全部'], ['periodic', '周期性'], ['onetime', '一次性']];
+        return '<div class="vpscs-shelf-head">'
+          + '<h2 class="vl-h2">选择最适合您的计划</h2>'
+          + '<p class="vl-sub">所有套餐与后台商品实时同步，周期套餐与一次性流量包分开选择。</p>'
+          + '<div class="vl-plan-filter" role="group" aria-label="套餐类型">'
+          + options.map(function (option) {
+            return '<button type="button" class="vl-filter-btn' + (shelfFilter === option[0] ? ' is-active' : '') + '" data-shelf-filter="' + option[0] + '">' + option[1] + '</button>';
+          }).join('')
+          + '</div></div>';
+      }
+
+      function shelfSectionHtml(kind, plans) {
+        if (!plans.length) return '';
+        var label = kind === 'onetime' ? '一次性流量套餐' : '周期套餐';
+        return '<section class="vpscs-shelf-group" data-kind="' + kind + '">'
+          + '<h3 class="vpscs-shelf-group-title">' + label + '<span>' + plans.length + ' 个在售</span></h3>'
+          + '<ul class="vl-plans">' + plans.map(function (plan) {
+            return planCardHtml(plan, '<button type="button" class="vl-btn" data-buy="' + escapeHtml(String(plan.id || '')) + '">立即订阅</button>');
+          }).join('') + '</ul></section>';
+      }
+
       function paintPlanShelf() {
         var shelf = document.getElementById('vpscs-plan-shelf');
         if (!shelf || !shelfPlans) return;
-        var mode = shelfFilterMode();
-        var plans = filterPlans(shelfPlans, mode);
-        var key = mode + '|' + JSON.stringify(plans);
+        var key = shelfFilter + '|' + JSON.stringify(shelfPlans);
         if (key === shelfPaintedKey) return;
         shelfPaintedKey = key;
-        if (!plans.length) { shelf.innerHTML = '<li class="vl-empty">该分类暂无在售套餐</li>'; return; }
-        shelf.innerHTML = plans.map(function (plan) {
-          return planCardHtml(plan, '<button type="button" class="vl-btn" data-buy="' + escapeHtml(String(plan.id || '')) + '">立即订阅</button>');
-        }).join('');
+        var periodic = shelfFilter === 'onetime' ? [] : filterPlans(shelfPlans, 'periodic');
+        var onetime = shelfFilter === 'periodic' ? [] : filterPlans(shelfPlans, 'onetime');
+        var html = shelfHeadHtml() + shelfSectionHtml('periodic', periodic) + shelfSectionHtml('onetime', onetime);
+        if (!periodic.length && !onetime.length) html += '<p class="vl-empty">该分类暂无在售套餐</p>';
+        shelf.innerHTML = html;
         hideNativePlanGrid();
+        tagPlanChrome();
       }
 
       function fetchShelfPlans(shelf) {
         if (shelfLoading) return;
         shelfLoading = true;
-        shelf.innerHTML = '<li class="vl-empty">正在加载套餐…</li>';
+        shelf.innerHTML = shelfHeadHtml() + '<p class="vl-empty">正在加载套餐…</p>';
         nativeFetch('/api/v1/user/plan/fetch', { headers: authHeaders(), credentials: 'same-origin', cache: 'no-store' })
           .then(function (r) { if (!r.ok) throw new Error(r.status === 403 ? '登录已过期，请重新登录' : '套餐加载失败（' + r.status + '）'); return r.json(); })
           .then(function (payload) { shelfPlans = payload.data || []; shelfPaintedKey = ''; paintPlanShelf(); })
-          .catch(function (error) { shelf.innerHTML = '<li class="vl-empty">' + escapeHtml(error.message || '套餐加载失败') + '</li>'; })
+          .catch(function (error) { shelf.innerHTML = shelfHeadHtml() + '<p class="vl-empty">' + escapeHtml(error.message || '套餐加载失败') + '</p>'; })
           .finally(function () { shelfLoading = false; });
       }
 
@@ -496,23 +534,26 @@
           var grids = Array.prototype.slice.call(document.querySelectorAll('.card-container'));
           var grid = grids.filter(function (item) { return item.getClientRects().length > 0; })[0] || grids[0];
           if (!grid) return;
-          shelf = document.createElement('ul');
+          shelf = document.createElement('div');
           shelf.id = 'vpscs-plan-shelf';
-          shelf.className = 'vl-plans vpscs-plan-shelf';
+          shelf.className = 'vpscs-shelf';
           grid.parentNode.insertBefore(shelf, grid.nextSibling);
         }
         // Keep both guards: the class for CSS, the inline style for safety.
         document.body.classList.add('vpscs-shelf-mode');
         hideNativePlanGrid();
+        tagPlanChrome();
         if (shelfPlans) { paintPlanShelf(); return; }
         fetchShelfPlans(shelf);
       }
 
       function syncPlanShelf() {
-        if (!planShelfMode()) {
-          var shelf = document.getElementById('vpscs-plan-shelf');
-          if (shelf) {
-            shelf.remove();
+        var onPlan = planShelfMode();
+        document.body.classList.toggle('vpscs-plan-page', onPlan);
+        if (!onPlan) {
+          var stale = document.getElementById('vpscs-plan-shelf');
+          if (stale) {
+            stale.remove();
             // Force a re-fetch next time: an administrator may have edited a
             // product in the meantime, and the card must follow that change.
             shelfPlans = null;
@@ -528,11 +569,18 @@
 
       document.addEventListener('click', function (event) {
         if (!planShelfMode()) return;
+        var filter = event.target.closest('#vpscs-plan-shelf [data-shelf-filter]');
+        if (filter) {
+          event.preventDefault();
+          shelfFilter = filter.getAttribute('data-shelf-filter');
+          shelfPaintedKey = '';
+          paintPlanShelf();
+          return;
+        }
         var buy = event.target.closest('#vpscs-plan-shelf [data-buy]');
         var card = event.target.closest('#vpscs-plan-shelf .vl-plan');
         if (buy) { event.preventDefault(); location.hash = '#/plan/' + buy.getAttribute('data-buy'); return; }
         if (card) { location.hash = '#/plan/' + (card.getAttribute('data-plan-id') || ''); return; }
-        if (event.target.closest('.n-base-segmented-item')) setTimeout(paintPlanShelf, 0);
       }, true);
       addEventListener('hashchange', function () { setTimeout(syncPlanShelf, 0); });
       // Vue re-creates the native grid when the segmented filter changes; hide
@@ -545,10 +593,37 @@
           queued = true;
           setTimeout(function () {
             queued = false;
-            if (planShelfMode() && document.getElementById('vpscs-plan-shelf')) hideNativePlanGrid();
+            if (!planShelfMode()) return;
+            if (document.getElementById('vpscs-plan-shelf')) { hideNativePlanGrid(); tagPlanChrome(); }
           }, 0);
         }).observe(document.body, { childList: true, subtree: true });
       })();
+
+      // 套餐详情：把「付款周期」移到左栏顶部并横向排列，用对号表示已选中。
+      function enhancePlanPeriod() {
+        if (!planDetailMode()) {
+          document.body.classList.remove('vpscs-period-moved');
+          return;
+        }
+        var cards = Array.prototype.slice.call(document.querySelectorAll('#app .n-card'));
+        var periodCard = null;
+        cards.forEach(function (card) {
+          var header = card.querySelector('.n-card-header__main, .n-card-header');
+          if (header && header.textContent.replace(/\s+/g, '') === '付款周期') periodCard = card;
+        });
+        if (!periodCard) return;
+        var anchor = periodCard.parentElement;
+        if (anchor && anchor.parentElement) {
+          anchor.classList.add('vpscs-period-anchor');
+          periodCard.classList.add('vpscs-period-card');
+          document.body.classList.add('vpscs-period-moved');
+        }
+        // Rows are re-rendered on every period change, so tag them each pass.
+        Array.prototype.slice.call(periodCard.querySelectorAll('.n-card__content > div')).forEach(function (wrapper) {
+          var row = wrapper.firstElementChild || wrapper;
+          row.classList.add('vpscs-period-row');
+        });
+      }
 
       var subscriptionRenderBusy = false;
       var subscriptionItems = [];
@@ -746,7 +821,9 @@
         }
       }
 
-      // 「捷径」里的一键订阅/续费订阅已经并入订阅卡，整行（含可点击外壳）都隐藏，不留空白可点区域。
+      // 「捷径」里的一键订阅 / 续费订阅 / 购买订阅都已并入订阅卡，整行（含可点击外壳）
+      // 都隐藏，不留空白可点区域。隐藏发生在 MutationObserver 的微任务里，早于下一帧绘制，
+      // 所以刷新时不会再先闪现一下再消失。
       function pruneShortcutRows() {
         var card = document.querySelector('#app .n-card.vpscs-shortcuts');
         if (!card) {
@@ -758,11 +835,14 @@
           card.classList.add('vpscs-shortcuts');
         }
         var content = card.querySelector('.n-card__content') || card;
-        ['一键订阅', '续费订阅'].forEach(function (label) {
-          var nodes = Array.prototype.slice.call(content.querySelectorAll('div'));
+        var labels = ['一键订阅', '续费订阅', '购买订阅', '购买新订阅'];
+        var pending = 0;
+        labels.forEach(function (label) {
+          var nodes = Array.prototype.slice.call(content.querySelectorAll('div,li,section'));
           var hits = nodes.filter(function (node) {
             var text = node.textContent.replace(/\s+/g, '');
-            return text.indexOf(label) === 0 && text.length < 40 && node.querySelector('div');
+            // 标题必须开头就出现，且整行只有标题 + 一句说明，避免误伤整个入口列表。
+            return text.indexOf(label) === 0 && text.length < 44 && (node.querySelector('div') || node.tagName !== 'DIV');
           });
           var row = hits.filter(function (node) { return hits.indexOf(node.parentElement) === -1; })[0];
           if (!row) return;
@@ -775,6 +855,7 @@
             if (upText.indexOf(label) !== 0 || upText.length > 60) break;
             shell = up;
           }
+          if (shell.style.display !== 'none') pending += 1;
           shell.style.setProperty('display', 'none', 'important');
           shell.style.setProperty('pointer-events', 'none', 'important');
         });
@@ -786,6 +867,7 @@
             child.style.setProperty('pointer-events', 'none', 'important');
           }
         });
+        return pending;
       }
       // Some browsers finish restoring the cached Vue view without producing
       // another child-list mutation.  A light poll makes the enhancement
@@ -793,6 +875,7 @@
       setInterval(renderSubscriptionList, 900);
       setInterval(pruneShortcutRows, 900);
       setInterval(syncPlanShelf, 900);
+      setInterval(enhancePlanPeriod, 900);
     })();
   </script>
 </body>
