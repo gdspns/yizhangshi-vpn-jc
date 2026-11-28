@@ -324,6 +324,7 @@
         var list = Array.isArray(data) ? data : (data && Array.isArray(data.data) ? data.data : null);
         if (!list || !list.length) return;
         adminUsers = list;
+        paintRowProfiles();
         refreshAdminEnhancements();
       }
       function applyUserListText(text) {
@@ -441,6 +442,116 @@
       function subscriptionSignature(items) {
         return (items || []).map(function (item) { return [item.id, profileNo(item, 0), item.name, item.expired_at, item.transfer_enable, item.u, item.d].join(':'); }).join(',');
       }
+
+      // ---- 列表行上的「订阅 / 到期时间」 ----
+      // 后台列表一行是一个账号，账号下可能有多条订阅。这两列统一显示
+      // 「当前订阅」（订阅1，也就是排在最前面、仍然有效的那一条）；
+      // 把这一条删掉以后，位置会自动落到下一条，不会停在已经删掉的订阅上。
+      function setCellText(cell, text) {
+        if (!cell) return;
+        var walker = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT, null);
+        var node;
+        var target = null;
+        while ((node = walker.nextNode())) {
+          if (/\S/.test(node.nodeValue)) target = node;
+        }
+        if (target) { target.nodeValue = text; return; }
+        if (cell.lastElementChild) cell.lastElementChild.appendChild(document.createTextNode(text));
+        else cell.textContent = text;
+      }
+      function userTableElement() {
+        var tables = document.querySelectorAll('#root table');
+        for (var i = 0; i < tables.length; i += 1) {
+          var head = tables[i].querySelector('thead');
+          if (!head) continue;
+          var text = head.textContent.replace(/\s+/g, '');
+          if (/订阅/.test(text) && /邮箱/.test(text)) return tables[i];
+        }
+        return null;
+      }
+      function rowEmail(row) {
+        var cells = row.children;
+        for (var i = 0; i < cells.length; i += 1) {
+          var match = (cells[i].textContent || '').match(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/);
+          if (match) return match[0];
+        }
+        return '';
+      }
+      // 当前订阅 = subscription_profiles 里的第一条（后端已按 id 升序、过滤过期）。
+      function currentProfileFor(user) {
+        var list = (user && user.subscription_profiles) || [];
+        for (var i = 0; i < list.length; i += 1) {
+          if (list[i] && list[i].id) return list[i];
+        }
+        return null;
+      }
+      // 只改文字、保留原来的 <div>/<span> 结构，避免把 React 的节点拆坏。
+      function paintCellText(cell, text, title) {
+        if (!cell) return;
+        if (cell.dataset.vpscsPainted && cell.textContent.trim() !== cell.dataset.vpscsPainted) {
+          // React 重新渲染过这一格，把它的新文字当作「原始值」，然后重画。
+          cell.dataset.vpscsNativeText = cell.textContent.trim();
+          delete cell.dataset.vpscsPainted;
+        }
+        if (cell.dataset.vpscsNativeText === undefined) cell.dataset.vpscsNativeText = cell.textContent.trim();
+        if (cell.dataset.vpscsPainted === text) return;
+        setCellText(cell, text);
+        cell.dataset.vpscsPainted = text;
+        if (title) cell.title = title;
+      }
+      function restoreCellText(cell) {
+        if (!cell || cell.dataset.vpscsNativeText === undefined) return;
+        if (cell.dataset.vpscsPainted) setCellText(cell, cell.dataset.vpscsNativeText);
+        delete cell.dataset.vpscsNativeText;
+        delete cell.dataset.vpscsPainted;
+        cell.removeAttribute('title');
+      }
+      // 原来的日期是「已过期」的红色样式，换成还有效的日期就得把颜色收回来。
+      function neutralizeExpiry(cell) {
+        var box = cell && cell.querySelector('[class*="border-destructive"]');
+        if (!box || box.dataset.vpscsColor === '1') return;
+        box.dataset.vpscsColor = '1';
+        box.style.color = 'hsl(var(--muted-foreground))';
+        box.style.borderColor = 'hsl(var(--border))';
+        box.style.backgroundColor = 'transparent';
+      }
+      function restoreExpiryColor(cell) {
+        var box = cell && cell.querySelector('[class*="border-destructive"]');
+        if (!box || box.dataset.vpscsColor !== '1') return;
+        box.style.color = '';
+        box.style.borderColor = '';
+        box.style.backgroundColor = '';
+        delete box.dataset.vpscsColor;
+      }
+      function paintRowProfiles() {
+        var table = userTableElement();
+        if (!table) return;
+        var heads = Array.prototype.map.call(table.querySelectorAll('thead th'), function (th) { return th.textContent.replace(/\s+/g, ''); });
+        var nameIndex = heads.indexOf('订阅');
+        var expiryIndex = heads.findIndex(function (head) { return /到期时间|接近时间|过期时间/.test(head); });
+        if (nameIndex < 0 && expiryIndex < 0) return;
+        Array.prototype.forEach.call(table.querySelectorAll('tbody tr'), function (row) {
+          var email = rowEmail(row);
+          var user = email && adminUsers.filter(function (item) { return item.email === email; })[0];
+          var profile = currentProfileFor(user);
+          var nameCell = nameIndex >= 0 ? row.children[nameIndex] : null;
+          var expiryCell = expiryIndex >= 0 ? row.children[expiryIndex] : null;
+          if (!profile) {
+            restoreCellText(nameCell);
+            restoreCellText(expiryCell);
+            restoreExpiryColor(expiryCell);
+            return;
+          }
+          var name = profile.name || (profile.plan && profile.plan.name) || '订阅';
+          var day = profileDay(profile);
+          var hint = '当前显示订阅' + profileNo(profile, 0) + '（ID ' + profile.id + '）的' ;
+          paintCellText(nameCell, name, hint + '套餐');
+          paintCellText(expiryCell, day, hint + '到期时间');
+          if (profile.expired_at) restoreExpiryColor(expiryCell);
+          else neutralizeExpiry(expiryCell);
+        });
+      }
+
       // ---- 编辑弹窗里的订阅面板 ----
       // 列表行里不再放订阅选择器（点「编辑」就能管理全部订阅），
       // 这里除了切换订阅，还能直接改流量、改到期、删除该订阅。
@@ -465,6 +576,28 @@
         var date = new Date(Number(timestamp) * 1000);
         return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
       }
+      // 不用 window.confirm：它会卡住整个页面（React 也停住），抽屉里样式也难看。
+      function confirmAction(message) {
+        return new Promise(function (resolve) {
+          var mask = document.createElement('div');
+          mask.className = 'vpscs-confirm-mask';
+          mask.innerHTML = '<div class="vpscs-confirm"><p></p><div class="vpscs-confirm-actions">'
+            + '<button type="button" data-answer="0">取消</button>'
+            + '<button type="button" class="is-danger" data-answer="1">删除</button>'
+            + '</div></div>';
+          mask.querySelector('p').textContent = message;
+          document.body.appendChild(mask);
+          var done = function (answer) {
+            mask.remove();
+            resolve(answer);
+          };
+          mask.addEventListener('click', function (event) {
+            var button = event.target.closest('button[data-answer]');
+            if (button) { done(button.getAttribute('data-answer') === '1'); return; }
+            if (event.target === mask) done(false);
+          });
+        });
+      }
       function subscriptionStatus(box, message, kind) {
         var node = box && box.querySelector('.vpscs-sub-status');
         if (!node) return;
@@ -476,6 +609,7 @@
         if (!box) return;
         box.dataset.signature = '';
         renderSubscriptionPicker();
+        paintRowProfiles();
         var fresh = document.querySelector('.vpscs-admin-subscriptions');
         if (fresh && message) subscriptionStatus(fresh, message, kind);
       }
@@ -579,26 +713,31 @@
           }
           if (act === 'expire-clear') { saveSubscriptionExpire(box, item, item.expired_at ? 0 : null); return; }
           if (act === 'delete') {
-            if (!window.confirm('确定删除「' + (item.name || '订阅') + '」这条订阅吗？删除后订阅链接立即失效，无法恢复。')) return;
-            button.disabled = true;
-            subscriptionStatus(box, '正在删除…');
-            subscriptionRequest('/user/subscription/destroy', { id: item.id })
-              .then(function () {
-                adminUsers.forEach(function (user) {
-                  if (Array.isArray(user.subscription_profiles)) {
-                    user.subscription_profiles = user.subscription_profiles.filter(function (profile) { return String(profile.id) !== String(item.id); });
-                  }
+            confirmAction('删除「' + (item.name || '订阅') + '」？订阅链接会立即失效，无法恢复。').then(function (ok) {
+              if (!ok) return;
+              button.disabled = true;
+              subscriptionStatus(box, '正在删除…');
+              subscriptionRequest('/user/subscription/destroy', { id: item.id })
+                .then(function () {
+                  // 本地先把这条抹掉：列表行的「订阅 / 到期」立刻落到下一条，
+                  // 600ms 后重新拉列表再对齐一次真实数据。
+                  adminUsers.forEach(function (user) {
+                    if (Array.isArray(user.subscription_profiles)) {
+                      user.subscription_profiles = user.subscription_profiles.filter(function (profile) { return String(profile.id) !== String(item.id); });
+                    }
+                  });
+                  profiles = profiles.filter(function (profile) { return String(profile.id) !== String(item.id); });
+                  var target = document.querySelector('.vpscs-admin-subscriptions');
+                  if (target) target.dataset.index = '0';
+                  paintRowProfiles();
+                  repaintSubscriptionPanel('已删除该订阅', 'ok');
+                  scheduleUserListRefresh();
+                })
+                .catch(function (error) {
+                  button.disabled = false;
+                  subscriptionStatus(box, '删除失败：' + error.message, 'error');
                 });
-                profiles = profiles.filter(function (profile) { return String(profile.id) !== String(item.id); });
-                var target = document.querySelector('.vpscs-admin-subscriptions');
-                if (target) target.dataset.index = '0';
-                repaintSubscriptionPanel('已删除该订阅', 'ok');
-                scheduleUserListRefresh();
-              })
-              .catch(function (error) {
-                button.disabled = false;
-                subscriptionStatus(box, '删除失败：' + error.message, 'error');
-              });
+            });
           }
         });
       }
@@ -925,6 +1064,7 @@
         // 订阅面板的数据来自 /user/fetch（里面带 subscription_profiles），
         // 列表还没加载完时先补一次请求，否则弹窗里没有可编辑的订阅。
         if (!adminUsers.length) loadAdminUsers(adminToken());
+        paintRowProfiles();
         renderSubscriptionPicker();
         renderTicketNotifier();
       }
@@ -964,6 +1104,13 @@
     .vpscs-sub-status { min-height:16px; font-size:12px; color:var(--el-text-color-secondary, #8a93a6); }
     .vpscs-sub-status.is-ok { color:#12b886; }
     .vpscs-sub-status.is-error { color:#f0596b; }
+    .vpscs-confirm-mask { position:fixed; inset:0; z-index:3000; display:flex; align-items:center; justify-content:center; background:rgba(6,10,18,.55); }
+    .vpscs-confirm { width:320px; padding:18px; display:grid; gap:14px; border:1px solid var(--el-border-color); border-radius:12px; background:var(--el-bg-color-overlay, #131c2c); box-shadow:0 18px 40px rgba(0,0,0,.35); }
+    .vpscs-confirm p { margin:0; font-size:13px; line-height:1.7; color:var(--el-text-color-primary); }
+    .vpscs-confirm-actions { display:flex; justify-content:flex-end; gap:10px; }
+    .vpscs-confirm-actions button { min-height:32px; padding:0 14px; font-size:12.5px; cursor:pointer; color:var(--el-text-color-primary); background:transparent; border:1px solid var(--el-border-color, #2b3a52); border-radius:7px; }
+    .vpscs-confirm-actions button.is-danger { border-color:rgba(240,89,107,.6); color:#f0596b; }
+    .vpscs-confirm-actions button.is-danger:hover { background:rgba(240,89,107,.14); }
     /* 工单邮件通知卡片 */
     .vpscs-tn { margin:0 0 18px; padding:16px 18px; display:grid; gap:10px; border:1px solid hsl(var(--border, 214 20% 28%)); border-radius:12px; background:hsl(var(--card, 222 30% 13%)); color:hsl(var(--card-foreground, 210 30% 92%)); }
     .vpscs-tn-head { display:flex; align-items:center; gap:10px; }
