@@ -684,6 +684,36 @@
         var fresh = document.querySelector('.vpscs-admin-subscriptions');
         if (fresh && message) subscriptionStatus(fresh, message, kind);
       }
+      // 切换当前订阅后，把这条挪到 subscription_profiles 最前面并重打
+      // is_current 标记：列表行只读第一条，挪完就等于「列表换成这一条」。
+      function markCurrentProfile(id) {
+        var key = String(id);
+        function promote(list) {
+          if (!Array.isArray(list)) return list;
+          var hit = null;
+          var rest = [];
+          list.forEach(function (profile) {
+            if (!hit && profile && String(profile.id) === key) { hit = profile; return; }
+            rest.push(profile);
+          });
+          if (!hit) return list;
+          return [hit].concat(rest);
+        }
+        adminUsers.forEach(function (user) {
+          if (!Array.isArray(user.subscription_profiles)) return;
+          if (!user.subscription_profiles.some(function (profile) { return profile && String(profile.id) === key; })) return;
+          user.subscription_profiles = promote(user.subscription_profiles).map(function (profile) {
+            profile.is_current = String(profile.id) === key;
+            return profile;
+          });
+        });
+        profiles = promote(profiles).map(function (profile) {
+          profile.is_current = String(profile.id) === key;
+          return profile;
+        });
+        var target = document.querySelector('.vpscs-admin-subscriptions');
+        if (target) target.dataset.index = '0';
+      }
       function saveSubscriptionTraffic(box, item, gb) {
         subscriptionStatus(box, '正在保存流量…');
         subscriptionRequest('/user/subscription/update', { id: item.id, transfer_enable: gb })
@@ -708,6 +738,8 @@
       }
       function paintSubscriptionDetail(box, index) {
         var item = profiles[index] || {};
+        // 「当前订阅」= 列表那一行正在显示的那条（后端已把它排在第一位）。
+        var isCurrent = item.is_current === true || index === 0;
         sessionStorage.setItem('vpscs_admin_subscription_id', item.id || '');
         var detail = box.querySelector('.vpscs-admin-subscription-detail');
         if (!detail) return;
@@ -715,7 +747,8 @@
 
         var head = document.createElement('div');
         head.className = 'vpscs-sub-line is-strong';
-        head.textContent = '当前操作目标：订阅' + profileNo(item, index) + '（' + (item.name || '订阅') + '，ID ' + item.id + '）';
+        head.textContent = '当前操作目标：订阅' + profileNo(item, index) + '（' + (item.name || '订阅') + '，ID ' + item.id + '）'
+          + (isCurrent ? ' · 列表显示中' : '');
         detail.appendChild(head);
 
         var plan = document.createElement('div');
@@ -754,52 +787,81 @@
 
         var actions = document.createElement('div');
         actions.className = 'vpscs-sub-line vpscs-sub-edit';
-        actions.innerHTML = '<button type="button" class="is-danger" data-act="delete">删除此订阅</button>';
+        // 只有一条订阅时切换没有意义，直接不给按钮。
+        var switchButton = profiles.length > 1
+          ? '<button type="button" class="is-primary" data-act="switch"'
+            + (isCurrent ? ' disabled title="这条已经是当前显示的订阅"' : ' title="切换后列表的订阅 / 流量 / 到期时间都跟着这一条显示"') + '>'
+            + (isCurrent ? '当前订阅' : '切换订阅') + '</button>'
+          : '';
+        actions.innerHTML = switchButton + '<button type="button" class="is-danger" data-act="delete">删除此订阅</button>';
         detail.appendChild(actions);
 
         var status = document.createElement('div');
         status.className = 'vpscs-sub-status';
         detail.appendChild(status);
 
+        // 只绑一次：切下拉只是重画详情（detail 节点不重建），
+        // 重复绑会把旧监听器留在里面，点「切换/删除」时拿着上一条订阅发请求。
+        if (detail.dataset.vpscsBound === '1') return;
+        detail.dataset.vpscsBound = '1';
         detail.addEventListener('click', function (event) {
           var button = event.target.closest('button[data-act]');
           if (button) event.stopPropagation();
           if (!button || button.disabled) return;
+          // 操作目标永远取「当前选中的那一条」，不用渲染时闭包里的旧对象。
+          var subject = profiles[Math.min(Math.max(0, Number(box.dataset.index || 0)), Math.max(0, profiles.length - 1))] || {};
           var act = button.getAttribute('data-act');
           var amount = detail.querySelector('.vpscs-sub-amount');
           var dateField = detail.querySelector('.vpscs-sub-date');
           if (act === 'traffic-save') {
-            saveSubscriptionTraffic(box, item, Math.max(0, Number(amount.value || 0)));
+            saveSubscriptionTraffic(box, subject, Math.max(0, Number(amount.value || 0)));
             return;
           }
           if (act === 'traffic-minus' || act === 'traffic-plus' || act === 'traffic-plus100') {
             var delta = act === 'traffic-minus' ? -10 : (act === 'traffic-plus' ? 10 : 100);
-            saveSubscriptionTraffic(box, item, Math.max(0, bytesToGb(item.transfer_enable) + delta));
+            saveSubscriptionTraffic(box, subject, Math.max(0, bytesToGb(subject.transfer_enable) + delta));
             return;
           }
           if (act === 'expire-save') {
             if (!dateField.value) { subscriptionStatus(box, '先选日期，或用「设为长期」', 'error'); return; }
-            saveSubscriptionExpire(box, item, Math.floor(new Date(dateField.value + 'T23:59:59').getTime() / 1000));
+            saveSubscriptionExpire(box, subject, Math.floor(new Date(dateField.value + 'T23:59:59').getTime() / 1000));
             return;
           }
-          if (act === 'expire-clear') { saveSubscriptionExpire(box, item, item.expired_at ? 0 : null); return; }
+          if (act === 'expire-clear') { saveSubscriptionExpire(box, subject, subject.expired_at ? 0 : null); return; }
+          if (act === 'switch') {
+            button.disabled = true;
+            subscriptionStatus(box, '正在切换当前订阅…');
+            subscriptionRequest('/user/subscription/switch', { id: subject.id })
+              .then(function () {
+                // 本地先把这条挪到最前：列表行的订阅 / 流量 / 到期立刻跟着变，
+                // 600ms 后再拉一次接口，用后端算好的顺序对齐。
+                markCurrentProfile(subject.id);
+                repaintSubscriptionPanel('已切换到「' + (subject.name || '订阅') + '」，列表与流量已跟着这一条', 'ok');
+                scheduleUserListRefresh();
+              })
+              .catch(function (error) {
+                button.disabled = false;
+                subscriptionStatus(box, '切换失败：' + error.message, 'error');
+              });
+            return;
+          }
           if (act === 'delete') {
-            confirmAction('删除「' + (item.name || '订阅') + '」？订阅链接会立即失效，无法恢复。').then(function (ok) {
+            confirmAction('删除「' + (subject.name || '订阅') + '」？订阅链接会立即失效，无法恢复。').then(function (ok) {
               if (!ok) return;
               button.disabled = true;
               subscriptionStatus(box, '正在删除…');
-              subscriptionRequest('/user/subscription/destroy', { id: item.id })
+              subscriptionRequest('/user/subscription/destroy', { id: subject.id })
                 .then(function () {
                   // 本地先把这条抹掉：列表行的「订阅 / 到期」立刻落到下一条，
                   // 600ms 后重新拉列表再对齐一次真实数据。
                   adminUsers.forEach(function (user) {
                     if (Array.isArray(user.subscription_profiles)) {
-                      user.subscription_profiles = user.subscription_profiles.filter(function (profile) { return String(profile.id) !== String(item.id); });
+                      user.subscription_profiles = user.subscription_profiles.filter(function (profile) { return String(profile.id) !== String(subject.id); });
                     }
                   });
-                  profiles = profiles.filter(function (profile) { return String(profile.id) !== String(item.id); });
-                  var target = document.querySelector('.vpscs-admin-subscriptions');
-                  if (target) target.dataset.index = '0';
+                  profiles = profiles.filter(function (profile) { return String(profile.id) !== String(subject.id); });
+                  var panel = document.querySelector('.vpscs-admin-subscriptions');
+                  if (panel) panel.dataset.index = '0';
                   paintRowProfiles();
                   repaintSubscriptionPanel('已删除该订阅', 'ok');
                   scheduleUserListRefresh();
@@ -853,7 +915,7 @@
         profiles.forEach(function (item, i) {
           var option = document.createElement('option');
           option.value = String(i);
-          option.textContent = profileLabel(item, i);
+          option.textContent = profileLabel(item, i) + (profiles.length > 1 && i === 0 ? '（当前）' : '');
           if (i === index) option.selected = true;
           select.appendChild(option);
         });

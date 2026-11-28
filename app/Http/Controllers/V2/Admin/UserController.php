@@ -84,6 +84,50 @@ class UserController extends Controller
         ]);
     }
 
+    /**
+     * 把名下某条订阅设为「当前订阅」。
+     *
+     * 列表里的订阅 / 已用流量 / 总流量 / 到期时间都读当前订阅，
+     * 所以「切换订阅」只是把父账号上的指针改掉，返回后下一次拉列表
+     * 自然就会显示这一条的数据。
+     */
+    public function switchSubscription(Request $request)
+    {
+        $request->validate([
+            'id' => 'required|integer',
+        ], [
+            'id.required' => '缺少订阅ID',
+            'id.integer' => '订阅ID格式不正确',
+        ]);
+
+        $target = User::find((int) $request->input('id'));
+        if (!$target) {
+            return $this->fail([400202, '订阅不存在']);
+        }
+
+        $ownerId = (int) ($target->owner_user_id ?: $target->id);
+        $owner = $ownerId === (int) $target->id ? $target : User::find($ownerId);
+        if (!$owner) {
+            return $this->fail([400202, '订阅所属账号不存在']);
+        }
+        if ($owner->owner_user_id) {
+            return $this->fail([400403, '订阅记录不能作为账号使用']);
+        }
+
+        $expiredAt = (int) $target->expired_at;
+        if ($expiredAt !== 0 && $expiredAt <= time()) {
+            return $this->fail([400422, '这条订阅已过期，不能设为当前订阅']);
+        }
+
+        $owner->current_subscription_id = (int) $target->id;
+        $owner->save();
+
+        return $this->success([
+            'id' => (int) $target->id,
+            'current_subscription_id' => (int) $owner->current_subscription_id,
+        ]);
+    }
+
     /** 删除一条名下订阅（主账号不允许在这里删，防止把用户本身删掉）。 */
     public function destroySubscription(Request $request)
     {
@@ -95,8 +139,16 @@ class UserController extends Controller
             return $this->fail([400403, '这是主账号，不能从订阅面板删除']);
         }
 
+        // 删掉的正好是「当前订阅」，指针要一起清掉，
+        // 否则列表会去读一条已经不存在的订阅。
+        $owner = User::find((int) $user->owner_user_id);
+        if ($owner && (int) $owner->current_subscription_id === (int) $user->id) {
+            $owner->current_subscription_id = null;
+            $owner->save();
+        }
+
         // 历史订单还引用着这条订阅，先解除引用再删，免得留下悬空 id。
-        \Illuminate\Support\Facades\DB::table('v2_order')
+        DB::table('v2_order')
             ->where('subscription_user_id', $user->id)
             ->update(['subscription_user_id' => null]);
 
@@ -325,9 +377,42 @@ class UserController extends Controller
                 'u' => $profile->u,
                 'd' => $profile->d,
                 'transfer_enable' => $profile->transfer_enable,
+                'is_current' => false,
             ];
         }
-        return $profiles;
+        return self::orderByCurrent($profiles, (int) $model->current_subscription_id);
+    }
+
+    /**
+     * 把「当前订阅」排到最前面，并打上 is_current 标记。
+     *
+     * 后台列表行、编辑抽屉的订阅选择框都读第一条，切换订阅只改父账号上的
+     * 指针即可；seq 在排序之前就按 id 定好了，所以切换不会让「订阅2」
+     * 突然变成「订阅1」。指针指向的订阅被删或过期时，回落到第一条有效订阅。
+     */
+    private static function orderByCurrent(array $profiles, int $currentId): array
+    {
+        if (!$profiles) {
+            return $profiles;
+        }
+        $picked = null;
+        $rest = [];
+        if ($currentId) {
+            foreach ($profiles as $profile) {
+                if ($picked === null && (int) $profile['id'] === $currentId) {
+                    $picked = $profile;
+                    continue;
+                }
+                $rest[] = $profile;
+            }
+        }
+        if ($picked === null) {
+            $picked = array_shift($profiles);
+            $rest = $profiles;
+        }
+        $picked['is_current'] = true;
+        array_unshift($rest, $picked);
+        return $rest;
     }
 
     public function getUserInfoById(Request $request)

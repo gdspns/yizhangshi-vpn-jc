@@ -147,6 +147,7 @@ class AdminRoute
                 $router->post('/destroy', [UserController::class, 'destroy']);
                 $router->post('/subscription/update', [UserController::class, 'updateSubscription']);
                 $router->post('/subscription/destroy', [UserController::class, 'destroySubscription']);
+                $router->post('/subscription/switch', [UserController::class, 'switchSubscription']);
             });
 
             // Stat
