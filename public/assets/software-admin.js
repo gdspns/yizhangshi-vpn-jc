@@ -6,9 +6,18 @@
 
   function escapeHtml(value) { var node = document.createElement('div'); node.textContent = value == null ? '' : String(value); return node.innerHTML; }
   function token() {
-    var value = localStorage.getItem('Xboard_access_token') || '';
-    try { value = JSON.parse(value); } catch (_) {}
-    return String(value || '');
+    // 后台把 token 存在 XBOARD_ACCESS_TOKEN（键名全大写），值是 JSON。
+    var keys = Object.keys(localStorage);
+    for (var i = 0; i < keys.length; i += 1) {
+      if (!/xboard[_-]?access[_-]?token$/i.test(keys[i])) continue;
+      var raw = localStorage.getItem(keys[i]) || '';
+      var parsed = raw;
+      try { parsed = JSON.parse(raw); } catch (_) {}
+      if (parsed && typeof parsed === 'object') parsed = parsed.value || parsed.token || '';
+      var value = String(parsed || '').trim();
+      if (value) return value;
+    }
+    return '';
   }
   function api(path, init) {
     init = init || {};
@@ -223,6 +232,7 @@
   var softwareActive = false;
   var pendingActivate = false;
   var lastRoute = '';
+  var softwareRoute = '';
 
   function rememberRoute() {
     var hash = location.hash || '';
@@ -250,7 +260,13 @@
   }
 
   function setActive(flag) {
+    if (!!flag === softwareActive) {
+      if (page) page.classList.toggle('is-active', softwareActive);
+      updateActiveLink();
+      return;
+    }
     softwareActive = !!flag;
+    if (!softwareActive) softwareRoute = '';
     if (page) page.classList.toggle('is-active', softwareActive);
     document.body.classList.toggle('vpscs-software-open', softwareActive);
     updateActiveLink();
@@ -274,15 +290,41 @@
       location.hash = lastRoute || '#/user/manage';
       return;
     }
+    softwareRoute = location.hash || '';
     setActive(true);
   }
 
   function handleHashChange() {
     installMenu();
-    if (/#\/software-management/.test(location.hash)) { openSoftware(); return; }
+    var hash = location.hash || '';
+    if (/#\/software-management/.test(hash)) { openSoftware(); return; }
     rememberRoute();
-    if (pendingActivate) { pendingActivate = false; setActive(true); return; }
+    if (pendingActivate) {
+      pendingActivate = false;
+      softwareRoute = hash;
+      setActive(true);
+      return;
+    }
+    // 面板开着时，路由没变就保持（React Router 会补一次 replaceState）。
+    if (softwareActive && hash === softwareRoute) { updateActiveLink(); return; }
     setActive(false);
+  }
+
+  // React Router 用 history.pushState 切换路由，不会触发 hashchange，
+  // 所以这里补一层拦截，保证点别的菜单时面板会自己收起。
+  function watchHistory() {
+    ['pushState', 'replaceState'].forEach(function (name) {
+      var original = history[name];
+      if (!original || original.__vpscsPatched) return;
+      var wrapped = function () {
+        var result = original.apply(this, arguments);
+        setTimeout(handleHashChange, 0);
+        return result;
+      };
+      wrapped.__vpscsPatched = true;
+      history[name] = wrapped;
+    });
+    addEventListener('popstate', handleHashChange);
   }
 
   function boot() {
@@ -306,6 +348,7 @@
       openSoftware();
     }, true);
     addEventListener('hashchange', handleHashChange);
+    watchHistory();
     rememberRoute();
     if (/#\/software-management/.test(location.hash)) openSoftware();
   }
