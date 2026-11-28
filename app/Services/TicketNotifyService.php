@@ -40,14 +40,23 @@ class TicketNotifyService
         return self::parse((string) admin_setting(self::SETTING_KEY, ''));
     }
 
-    /** 站点 SMTP 是否已经配置好（没配置就别发，免得刷一堆失败日志）。 */
+    /** 站点 SMTP 是否真的能发信（没配好就别发，免得刷一堆失败日志）。 */
     public static function smtpReady(): bool
     {
         if (admin_setting('email_host')) {
             return true;
         }
-        $default = (string) config('mail.default');
-        return $default !== '' && $default !== 'log' && $default !== 'array';
+        // 没在后台填 SMTP 时，只能看 .env 里的默认配置。
+        // 项目自带的 smtp.mailgun.org 是占位值，账号密码为空，发不出去。
+        $driver = strtolower((string) config('mail.default'));
+        if (!in_array($driver, ['smtp', 'ses', 'postmark', 'mailgun', 'resend', 'sendmail'], true)) {
+            return false;
+        }
+        $host = strtolower((string) config('mail.host'));
+        if ($host === '' || in_array($host, ['smtp.mailgun.org', 'localhost', '127.0.0.1'], true)) {
+            return false;
+        }
+        return (string) config('mail.username') !== '' || in_array($driver, ['ses', 'postmark', 'mailgun', 'resend', 'sendmail'], true);
     }
 
     /**
