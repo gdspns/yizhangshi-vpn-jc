@@ -405,12 +405,24 @@
         if (index === -1) return;
         Array.prototype.slice.call(table.querySelectorAll('tbody tr')).forEach(function (row) {
           var cell = row.children[index];
-          if (!cell || cell.querySelector('.vpscs-row-sub')) return;
+          if (!cell) return;
           var emailMatch = (row.textContent || '').match(/[\w.+-]+@[\w.-]+/);
           if (!emailMatch) return;
           var user = adminUsers.find(function (item) { return item.email === emailMatch[0]; });
           var items = user && Array.isArray(user.subscription_profiles) ? user.subscription_profiles : [];
-          if (items.length < 2) return;
+          if (!items.length) return;
+          // Row actions (reset password, edit, delete) must target the row the
+          // administrator clicked, otherwise a previously selected subscription
+          // from another user would be rewritten into the request.
+          if (row.dataset.vpscsSubBound !== '1') {
+            row.dataset.vpscsSubBound = '1';
+            row.addEventListener('click', function () {
+              var picker = row.querySelector('.vpscs-row-sub select');
+              var id = picker ? picker.value : String((items[0] || {}).id || '');
+              if (id) sessionStorage.setItem('vpscs_admin_subscription_id', id);
+            }, true);
+          }
+          if (items.length < 2 || cell.querySelector('.vpscs-row-sub')) return;
           var wrap = document.createElement('div');
           wrap.className = 'vpscs-row-sub';
           var select = document.createElement('select');
