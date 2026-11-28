@@ -475,6 +475,7 @@
         shelf.innerHTML = plans.map(function (plan) {
           return planCardHtml(plan, '<button type="button" class="vl-btn" data-buy="' + escapeHtml(String(plan.id || '')) + '">立即订阅</button>');
         }).join('');
+        hideNativePlanGrid();
       }
 
       function fetchShelfPlans(shelf) {
