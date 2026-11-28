@@ -692,9 +692,15 @@
           });
           var row = hits.filter(function (node) { return hits.indexOf(node.parentElement) === -1; })[0];
           if (!row) return;
-          // 一路向上找到内容区下的一级节点：外层卡片才是真正带点击事件和留白的那个壳。
+          // 一路向上找到这一行真正带点击事件的外壳（文本仍以该标题开头才继续上升，
+          // 避免把包含其它入口的整个列表容器一起隐藏掉）。
           var shell = row;
-          while (shell.parentElement && shell.parentElement !== content) shell = shell.parentElement;
+          while (shell.parentElement && shell.parentElement !== content) {
+            var up = shell.parentElement;
+            var upText = up.textContent.replace(/\s+/g, '');
+            if (upText.indexOf(label) !== 0 || upText.length > 60) break;
+            shell = up;
+          }
           shell.style.setProperty('display', 'none', 'important');
           shell.style.setProperty('pointer-events', 'none', 'important');
         });
