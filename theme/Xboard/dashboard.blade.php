@@ -637,19 +637,88 @@
 
       var subscriptionRenderBusy = false;
       var subscriptionItems = [];
+      var subscriptionHost = null;
+
+      // 订阅类型：一次性套餐没有到期时间（后端 buyByOneTime 会把 expired_at 置空），
+      // 周期套餐一定有到期时间；老数据兜底再看一眼套餐价格配置。
+      function subscriptionKind(item) {
+        var expiredAt = item.expired_at;
+        if (!(expiredAt === null || expiredAt === undefined || Number(expiredAt) === 0)) {
+          return { key: 'period', label: '周期套餐' };
+        }
+        var prices = (item.plan && item.plan.prices) || {};
+        var periodKeys = ['monthly', 'quarterly', 'half_yearly', 'yearly', 'two_yearly', 'three_yearly',
+          'month_price', 'quarter_price', 'half_year_price', 'year_price', 'two_year_price', 'three_year_price'];
+        var hasPeriod = periodKeys.some(function (key) { return Number(prices[key] || 0) > 0; });
+        var hasOneTime = Number(prices.onetime || prices.onetime_price || 0) > 0;
+        if (hasPeriod && !hasOneTime) return { key: 'period', label: '周期套餐' };
+        return { key: 'onetime', label: '一次性套餐' };
+      }
+
+      function paintSubscriptionList(content, items) {
+        subscriptionHost = content;
+        content.classList.add('vpscs-subscription-host');
+        if (!items.length) {
+          var blank = document.createElement('div');
+          blank.className = 'vpscs-subscription-loading is-empty';
+          blank.innerHTML = '<span>当前没有有效订阅</span><button type="button">购买订阅</button>';
+          blank.querySelector('button').addEventListener('click', function () { clearRenew(); location.hash = '#/plan'; });
+          content.replaceChildren(blank);
+          return;
+        }
+        var list = document.createElement('div'); list.id = 'vpscs-subscription-list'; list.className = 'vpscs-subscription-list';
+        list.innerHTML = items.map(function (item, index) {
+          var used = Number(item.u || 0) + Number(item.d || 0);
+          var total = Number(item.transfer_enable || 0);
+          var expires = item.expired_at ? new Date(Number(item.expired_at) * 1000).toLocaleDateString() : '长期有效';
+          var kind = subscriptionKind(item);
+          return '<section class="vpscs-subscription-card">'
+            + '<div class="vpscs-subscription-head"><span class="vpscs-subscription-name">' + escapeHtml(item.name || '订阅') + '</span>'
+            + '<span class="vpscs-subscription-tag is-' + kind.key + '">' + kind.label + '</span></div>'
+            + '<p class="vpscs-subscription-meta">到期：' + expires + ' · 已用 ' + (used / 1073741824).toFixed(2) + ' GB / ' + (total / 1073741824).toFixed(2) + ' GB</p>'
+            + '<div class="vpscs-subscription-url">' + escapeHtml(item.subscribe_url) + '</div>'
+            + '<div class="vpscs-subscription-actions"><button type="button" data-renew="' + index + '">续费订阅</button><button type="button" data-copy="' + index + '">复制订阅</button></div>'
+            + '</section>';
+        }).join('');
+        content.replaceChildren(list);
+        list.addEventListener('click', function (event) {
+          var renew = event.target.closest('[data-renew]');
+          var copy = event.target.closest('[data-copy]');
+          if (renew) {
+            var item = items[Number(renew.getAttribute('data-renew'))] || {};
+            var planId = item.plan && item.plan.id ? item.plan.id : '';
+            sessionStorage.setItem(RENEW_KEY, JSON.stringify({ id: Number(item.id || 0), plan: planId ? Number(planId) : 0 }));
+            location.hash = planId ? '#/plan/' + planId : '#/plan';
+          }
+          if (copy) {
+            var target = items[Number(copy.getAttribute('data-copy'))] || {};
+            openCopyDialog(target.subscribe_url || '', target.name || '我的订阅');
+          }
+        });
+      }
+
       function renderSubscriptionList() {
-        if (!/dashboard/i.test(location.hash) || subscriptionRenderBusy || document.getElementById('vpscs-subscription-list')) return;
+        if (!/dashboard/i.test(location.hash) || subscriptionRenderBusy) return;
         var card = Array.from(document.querySelectorAll('#app .n-card')).find(function (node) { return node.textContent.includes('我的订阅'); });
         var content = card && card.querySelector('.n-card__content');
-        if (!content || content.dataset.vpscsSubscriptionManaged === '1') return;
-        content.dataset.vpscsSubscriptionManaged = '1';
+        if (!content) return;
+        // 记住挂载的节点本身：Vue 换页时会重建这个容器，之前用 dataset 标记会导致
+        // 标记留下来、内容却没了，于是「我的订阅」一直空白，必须刷新才出现。
+        var painted = content.querySelector('.vpscs-subscription-list, .vpscs-subscription-loading');
+        if (subscriptionHost === content && painted) return;
+        if (subscriptionItems.length) {
+          // 有缓存直接画，避免每次进页面都先闪一下加载态。
+          paintSubscriptionList(content, subscriptionItems);
+        } else {
+          var loading = document.createElement('div');
+          loading.className = 'vpscs-subscription-loading';
+          loading.textContent = '正在加载订阅卡片…';
+          content.replaceChildren(loading);
+        }
         content.classList.add('vpscs-subscription-host');
-        var loading = document.createElement('div');
-        loading.className = 'vpscs-subscription-loading';
-        loading.textContent = '正在加载订阅卡片…';
-        content.replaceChildren(loading);
         subscriptionRenderBusy = true;
-        nativeFetch('/api/v1/user/getSubscriptions', { headers: authHeaders(), credentials: 'same-origin' }).then(function (r) {
+        // cache:no-store：管理员改了价格/名称后刷新即可看到。
+        nativeFetch('/api/v1/user/getSubscriptions', { headers: authHeaders(), credentials: 'same-origin', cache: 'no-store' }).then(function (r) {
           if (!r.ok) throw new Error(r.status === 403 ? '登录已过期，请重新登录' : '订阅接口请求失败（' + r.status + '）');
           return r.json();
         }).then(function (payload) {
@@ -662,46 +731,18 @@
             return Number(expiredAt) > nowSec;
           });
           subscriptionItems = items;
-          if (!items.length) {
-            var blank = document.createElement('div');
-            blank.className = 'vpscs-subscription-loading is-empty';
-            blank.innerHTML = '<span>当前没有有效订阅</span><button type="button">购买订阅</button>';
-            blank.querySelector('button').addEventListener('click', function () { clearRenew(); location.hash = '#/plan'; });
-            content.replaceChildren(blank);
-            return;
-          }
-          var list = document.createElement('div'); list.id = 'vpscs-subscription-list'; list.className = 'vpscs-subscription-list';
-          list.innerHTML = items.map(function (item, index) {
-            var used = Number(item.u || 0) + Number(item.d || 0);
-            var total = Number(item.transfer_enable || 0);
-            var expires = item.expired_at ? new Date(Number(item.expired_at) * 1000).toLocaleDateString() : '长期有效';
-            return '<section class="vpscs-subscription-card">'
-              + '<div class="vpscs-subscription-head"><span class="vpscs-subscription-name">' + escapeHtml(item.name || '订阅') + '</span><span>到期：' + expires + '</span></div>'
-              + '<p class="vpscs-subscription-meta">已用 ' + (used / 1073741824).toFixed(2) + ' GB / ' + (total / 1073741824).toFixed(2) + ' GB</p>'
-              + '<div class="vpscs-subscription-url">' + escapeHtml(item.subscribe_url) + '</div>'
-              + '<div class="vpscs-subscription-actions"><button type="button" data-renew="' + index + '">续费订阅</button><button type="button" data-copy="' + index + '">复制订阅</button></div>'
-              + '</section>';
-          }).join('');
-          content.replaceChildren(list);
-          list.addEventListener('click', function (event) {
-            var renew = event.target.closest('[data-renew]');
-            var copy = event.target.closest('[data-copy]');
-            if (renew) {
-              var item = subscriptionItems[Number(renew.getAttribute('data-renew'))] || {};
-              var planId = item.plan && item.plan.id ? item.plan.id : '';
-              sessionStorage.setItem(RENEW_KEY, JSON.stringify({ id: Number(item.id || 0), plan: planId ? Number(planId) : 0 }));
-              location.hash = planId ? '#/plan/' + planId : '#/plan';
-            }
-            if (copy) {
-              var target = subscriptionItems[Number(copy.getAttribute('data-copy'))] || {};
-              openCopyDialog(target.subscribe_url || '', target.name || '我的订阅');
-            }
-          });
+          paintSubscriptionList(content, items);
         }).catch(function (error) {
+          if (subscriptionItems.length) return;
           var failed = document.createElement('div');
           failed.className = 'vpscs-subscription-loading is-error';
           failed.innerHTML = '<span>' + escapeHtml(error.message || '订阅加载失败') + '</span><button type="button">重新加载</button>';
-          failed.querySelector('button').addEventListener('click', function () { content.dataset.vpscsSubscriptionManaged = ''; content.replaceChildren(); renderSubscriptionList(); });
+          failed.querySelector('button').addEventListener('click', function () {
+            subscriptionHost = null;
+            subscriptionItems = [];
+            content.replaceChildren();
+            renderSubscriptionList();
+          });
           content.replaceChildren(failed);
         }).finally(function () { subscriptionRenderBusy = false; });
       }
@@ -909,10 +950,8 @@
         });
         if (!expired) return;
         subscriptionItems = [];
-        var host = document.querySelector('.vpscs-subscription-host');
-        if (!host) return;
-        host.dataset.vpscsSubscriptionManaged = '';
-        host.replaceChildren();
+        if (subscriptionHost) subscriptionHost.replaceChildren();
+        subscriptionHost = null;
         renderSubscriptionList();
       }, 60000);
     })();

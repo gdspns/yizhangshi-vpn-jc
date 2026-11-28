@@ -342,7 +342,12 @@
     }
     document.addEventListener('click', function (event) {
       var link = event.target.closest && event.target.closest('a[href="#/software-management"], [data-vpscs-software-link]');
-      if (!link) return;
+      if (!link) {
+        // 侧边栏上任何别的入口都算离开软件管理，立刻把面板收起来，
+        // 不依赖前端路由是否触发 hashchange / pushState。
+        if (softwareActive && event.target.closest && event.target.closest('aside nav a, aside nav button[data-state]')) setActive(false);
+        return;
+      }
       event.preventDefault();
       event.stopPropagation();
       openSoftware();
