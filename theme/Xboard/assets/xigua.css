@@ -194,6 +194,18 @@ body[data-xg-route="/plan"] #app .card-container > .card-item > .n-card {
   background: #17191d !important;
 }
 
+/* Product cards use the same visual system as the landing-page shelf. */
+body[data-xg-route="/plan"] #app .card-container > .card-item > .n-card {
+  border-width: 1px !important;
+  border-radius: 20px !important;
+  box-shadow: 0 18px 45px rgba(0,0,0,.22) !important;
+}
+body[data-xg-route="/plan"] #app .card-container > .card-item .n-card__content {
+  display: flex;
+  flex-direction: column;
+  min-height: 400px;
+}
+
 body[data-xg-route="/plan"] #app .card-container > .card-item:nth-child(3n+2) > .n-card { border-color: #ff9d00 !important; }
 body[data-xg-route="/plan"] #app .card-container > .card-item:nth-child(3n) > .n-card { border-color: #9b20e8 !important; }
 
@@ -219,9 +231,32 @@ body[data-xg-route="/plan"] #app .card-container > .card-item:nth-child(3n) > .n
 .vpscs-subscription-loading { min-height:220px; display:flex; align-items:center; justify-content:center; gap:14px; border:1px dashed #39443e; border-radius:18px; color:#9fb0a6; background:#151b18; }
 .vpscs-subscription-loading.is-error { color:#f0a5a5; }
 .vpscs-subscription-loading button { min-height:38px; padding:0 14px; border:1px solid #4a5c52; border-radius:9px; color:#edf5f0; background:#25332b; cursor:pointer; }
+.vpscs-subscription-host > :not(#vpscs-subscription-list):not(.vpscs-subscription-loading) { display:none !important; }
 :is(html.dark, body.dark) .vpscs-subscription-card { background:#17191d; }
 @media (max-width:1000px) { .vpscs-subscription-list { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media (max-width:680px) { .vpscs-subscription-list { grid-template-columns:1fr; } }
+
+/* Table actions: neutral detail action plus clearly destructive close/cancel. */
+#app .vpscs-action-view,
+#app .vpscs-action-danger {
+  min-width: 74px !important;
+  padding: 0 15px !important;
+  white-space: nowrap !important;
+  border-radius: 10px !important;
+  box-shadow: none !important;
+}
+#app .vpscs-action-view {
+  color: #dbeafe !important;
+  background: #243b68 !important;
+  border-color: #35558f !important;
+}
+#app .vpscs-action-danger {
+  color: #fecaca !important;
+  background: #3b2026 !important;
+  border-color: #71313c !important;
+}
+#app .vpscs-action-view:hover { background:#2d4b82 !important; }
+#app .vpscs-action-danger:hover { background:#512730 !important; }
 
 /* Controls */
 #app .n-button {

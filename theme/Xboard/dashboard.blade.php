@@ -8,8 +8,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/theme/{{$theme}}/assets/xigua.css?v={{$version}}-layout6" />
-  <script defer src="/theme/{{$theme}}/assets/xigua.js?v={{$version}}-layout6"></script>
+  <link rel="stylesheet" href="/theme/{{$theme}}/assets/xigua.css?v={{$version}}-layout7" />
+  <script defer src="/theme/{{$theme}}/assets/xigua.js?v={{$version}}-layout7"></script>
 </head>
 <style>
   .markdown-body { white-space: pre-line; }
@@ -117,11 +117,11 @@
   <div id="vpscs-landing">
     <header class="vl-top"><div class="vl-wrap vl-top-in">
       <a class="vl-brand" href="/"><span class="vl-mark"></span><span>{{ $title }}</span></a>
-      <nav class="vl-actions"><a class="vl-link vl-enter-app" href="#/login">登录</a><a class="vl-btn vl-enter-app" href="#/register">注册</a></nav>
+      <nav class="vl-actions" data-landing-auth><a class="vl-link vl-enter-app" href="#/login">登录</a><a class="vl-btn vl-enter-app" href="#/register">注册</a></nav>
     </div></header>
     <main>
       <section class="vl-hero"><div class="vl-wrap vl-hero-in">
-        <div><p class="vl-eyebrow"><span class="vl-dot"></span>稳定、安全、简单易用</p><h1 class="vl-title">{{ $title }}</h1><p class="vl-lead">让复杂的线路配置留在后台，为您提供清晰的套餐选择与便捷的全平台连接体验。</p><p class="vl-cta"><a class="vl-btn vl-enter-app" href="#/register">立即注册</a><a class="vl-btn vl-btn-soft vl-enter-app" href="#/login">登录</a></p><p class="vl-platforms">支持 iPhone、安卓、Mac 与 Windows</p></div>
+        <div><p class="vl-eyebrow"><span class="vl-dot"></span>稳定、安全、简单易用</p><h1 class="vl-title">{{ $title }}</h1><p class="vl-lead">让复杂的线路配置留在后台，为您提供清晰的套餐选择与便捷的全平台连接体验。</p><p class="vl-cta" data-landing-auth><a class="vl-btn vl-enter-app" href="#/register">立即注册</a><a class="vl-btn vl-btn-soft vl-enter-app" href="#/login">登录</a></p><p class="vl-platforms">支持 iPhone、安卓、Mac 与 Windows</p></div>
         <div class="vl-phone"><p class="vl-phone-top"><span class="vl-mark"></span>{{ $title }}</p><div class="vl-mini-card"><p class="vl-mini-label">我的套餐</p><p class="vl-mini-plan">高速稳定 · 多平台通用</p><p class="vl-bar"><span></span></p><p>本期流量使用情况</p><p class="vl-mini-button">复制订阅链接</p></div></div>
       </div></section>
       <section class="vl-section"><div class="vl-wrap"><h2 class="vl-h2 vl-center">为速度与稳定而做</h2><p class="vl-sub vl-center">简单选择套餐，登录后即可获取订阅并开始使用。</p><ul class="vl-features">
@@ -137,9 +137,9 @@
       </ol></div></section>
       <section class="vl-section"><div class="vl-wrap vl-regions-wrap"><div><h2 id="vl-region-title" class="vl-h2">覆盖多个地区</h2><p class="vl-sub" style="margin:0">节点按地区分布，后台可以随时增加、修改或删除展示地区。</p></div><ul id="vl-region-list" class="vl-regions"></ul></div></section>
       <section class="vl-section vl-soft" id="plans"><div class="vl-wrap"><h2 class="vl-h2 vl-center">套餐与价格</h2><p class="vl-sub vl-center">以下内容实时读取后台已上架商品，修改套餐后首页自动同步。</p><div class="vl-plan-filter" role="group" aria-label="套餐类型"><button class="vl-filter-btn is-active" data-plan-filter="all">全部</button><button class="vl-filter-btn" data-plan-filter="periodic">周期性</button><button class="vl-filter-btn" data-plan-filter="onetime">一次性</button></div><ul id="vl-plan-list" class="vl-plans"><li class="vl-empty">正在加载套餐…</li></ul></div></section>
-      <section class="vl-section"><div class="vl-wrap"><div class="vl-final"><h2 class="vl-h2">现在开始</h2><p>注册账号、选择套餐，几分钟即可完成配置。</p><p class="vl-cta" style="justify-content:center"><a class="vl-btn vl-enter-app" href="#/register">立即注册</a><a class="vl-link vl-enter-app" style="color:#fff" href="#/login">已有账号，去登录</a></p></div></div></section>
+      <section class="vl-section"><div class="vl-wrap"><div class="vl-final"><h2 class="vl-h2">现在开始</h2><p>注册账号、选择套餐，几分钟即可完成配置。</p><p class="vl-cta" data-landing-auth style="justify-content:center"><a class="vl-btn vl-enter-app" href="#/register">立即注册</a><a class="vl-link vl-enter-app" style="color:#fff" href="#/login">已有账号，去登录</a></p></div></div></section>
     </main>
-    <footer class="vl-foot"><div class="vl-wrap vl-foot-in"><span>© {{ $title }}</span><span class="vl-version">VPSCS v2026.11.27.4</span><span><a class="vl-link vl-enter-app" href="#/login">登录</a> · <a class="vl-link vl-enter-app" href="#/register">注册</a></span></div></footer>
+    <footer class="vl-foot"><div class="vl-wrap vl-foot-in"><span>© {{ $title }}</span><span class="vl-version">VPSCS v2026.11.28.1</span><span data-landing-auth><a class="vl-link vl-enter-app" href="#/login">登录</a> · <a class="vl-link vl-enter-app" href="#/register">注册</a></span></div></footer>
   </div>
 
   <script>
@@ -243,11 +243,43 @@
 
       function escapeHtml(value) { var div = document.createElement('div'); div.textContent = value; return div.innerHTML; }
 
+      function storedAccessToken() {
+        var token = localStorage.getItem('Vue_Naive_access_token') || localStorage.getItem('access_token') || '';
+        try {
+          var saved = JSON.parse(token);
+          token = saved && typeof saved === 'object' ? (saved.value || '') : saved;
+        } catch (_) {}
+        return typeof token === 'string' ? token : '';
+      }
+      function authHeaders() {
+        var token = storedAccessToken();
+        return token ? { Authorization: token } : {};
+      }
+      function enterApp(event) {
+        if (event) event.preventDefault();
+        landingRequested = false;
+        document.body.classList.remove('vpscs-landing-mode');
+        loadUserApp();
+        location.hash = '#/dashboard';
+      }
+      function syncLandingAuth() {
+        if (!storedAccessToken()) return;
+        document.querySelectorAll('[data-landing-auth]').forEach(function (node) {
+          node.innerHTML = '<a class="vl-btn vl-dashboard-link" href="#/dashboard">进入后台</a>';
+          node.querySelector('.vl-dashboard-link').addEventListener('click', enterApp);
+        });
+      }
+      syncLandingAuth();
+
       // Rename the legacy filter label without altering internal period keys.
       new MutationObserver(function () {
         document.querySelectorAll('label,button,span').forEach(function (node) {
-          if (node.childElementCount === 0 && node.textContent.trim() === '按流量') node.textContent = '一次性套餐';
-          if (node.childElementCount === 0 && node.textContent.trim() === '购买订阅') {
+          var label = node.childElementCount === 0 ? node.textContent.trim() : '';
+          var action = node.closest('button,a');
+          if (action && ['查看', '查看详情'].includes(label)) action.classList.add('vpscs-action-view');
+          if (action && ['关闭', '取消'].includes(label)) action.classList.add('vpscs-action-danger');
+          if (label === '按流量') node.textContent = '一次性套餐';
+          if (label === '购买订阅') {
             node.textContent = '购买新订阅';
             node.closest('button,a')?.addEventListener('click', function () { sessionStorage.removeItem('vpscs_renew_subscription_id'); }, { once: true });
           }
@@ -274,23 +306,23 @@
       addEventListener('hashchange', function () { setTimeout(enforcePlanGrid, 0); });
 
       var subscriptionRenderBusy = false;
-      function authHeaders() {
-        var token = localStorage.getItem('Vue_Naive_access_token') || localStorage.getItem('access_token') || '';
-        try { token = JSON.parse(token); } catch (_) {}
-        return token ? { Authorization: String(token) } : {};
-      }
       function renderSubscriptionList() {
         if (!/dashboard/i.test(location.hash) || subscriptionRenderBusy || document.getElementById('vpscs-subscription-list')) return;
         var card = Array.from(document.querySelectorAll('#app .n-card')).find(function (node) { return node.textContent.includes('我的订阅'); });
         var content = card && card.querySelector('.n-card__content');
         if (!content || content.dataset.vpscsSubscriptionManaged === '1') return;
         content.dataset.vpscsSubscriptionManaged = '1';
+        content.classList.add('vpscs-subscription-host');
         var loading = document.createElement('div');
         loading.className = 'vpscs-subscription-loading';
         loading.textContent = '正在加载订阅卡片…';
         content.replaceChildren(loading);
         subscriptionRenderBusy = true;
-        nativeFetch('/api/v1/user/getSubscriptions', { headers: authHeaders(), credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (payload) {
+        nativeFetch('/api/v1/user/getSubscriptions', { headers: authHeaders(), credentials: 'same-origin' }).then(function (r) {
+          if (!r.ok) throw new Error(r.status === 403 ? '登录已过期，请重新登录' : '订阅接口请求失败（' + r.status + '）');
+          return r.json();
+        }).then(function (payload) {
+          if (payload.code !== 0 && payload.code !== 200 && !Array.isArray(payload.data)) throw new Error(payload.message || '订阅加载失败');
           var items = payload.data || [];
           if (!Array.isArray(items) || !items.length) throw new Error(payload.message || '暂时没有有效订阅');
           var list = document.createElement('div'); list.id = 'vpscs-subscription-list'; list.className = 'vpscs-subscription-list';
