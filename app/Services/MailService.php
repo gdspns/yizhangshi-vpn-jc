@@ -239,15 +239,9 @@ class MailService
      */
     public static function sendEmail(array $params)
     {
-        if (admin_setting('email_host')) {
-            Config::set('mail.host', admin_setting('email_host', config('mail.host')));
-            Config::set('mail.port', admin_setting('email_port', config('mail.port')));
-            Config::set('mail.encryption', admin_setting('email_encryption', config('mail.encryption')));
-            Config::set('mail.username', admin_setting('email_username', config('mail.username')));
-            Config::set('mail.password', admin_setting('email_password', config('mail.password')));
-            Config::set('mail.from.address', admin_setting('email_from_address', config('mail.from.address')));
-            Config::set('mail.from.name', admin_setting('app_name', 'VPSCS'));
-        }
+        // 每次发信前重新套用后台的 SMTP 设置：Laravel 12 读的是
+        // mail.mailers.smtp.*，老写法 mail.host 已经不生效。
+        MailConfig::apply();
         $email = $params['email'];
         $subject = $params['subject'];
         $templateName = $params['template_name'];

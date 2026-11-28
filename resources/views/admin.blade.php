@@ -631,7 +631,7 @@
         if (!ticketNotify.smtpReady) {
           badge.textContent = '未配置发信';
           badge.className = 'vpscs-tn-badge is-warn';
-          ticketNotifyStatus('还没配置发信服务器：展开下面的「发信服务器设置」填好 SMTP（用本站域名邮箱即可），保存后发一封测试邮件确认。', 'warn');
+          ticketNotifyStatus('还没配置发信服务器：到「系统设置 → 邮件」填好 SMTP（和下面这份是同一套配置），保存后发一封测试邮件确认。', 'warn');
         } else if (ticketNotify.emails.length) {
           badge.textContent = '已开启 · ' + ticketNotify.emails.length + ' 个邮箱';
           badge.className = 'vpscs-tn-badge is-ok';
