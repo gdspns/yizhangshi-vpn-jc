@@ -140,18 +140,17 @@
     .vpscs-shelf-group-title { font-size: 17px; }
   }
 
-  /* 套餐详情：付款周期上移并横向排列，勾选态用圆形对号表达 */
-  body.vpscs-period-moved .vpscs-period-anchor { display: flex; flex-direction: column; }
-  body.vpscs-period-moved .vpscs-period-anchor > .vpscs-period-card { order: -1; }
-  .vpscs-period-card .n-card__content { display: grid !important; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); gap: 10px; padding: 14px 16px !important; }
-  .vpscs-period-card .n-card__content hr { display: none !important; }
-  .vpscs-period-card .n-card__content > div { min-width: 0; box-sizing: border-box; }
+  /* 套餐详情：付款周期提到页面最顶部整行横向排列，勾选态用圆形对号表达 */
+  .vpscs-period-top { margin: 18px 0 0 !important; }
+  .vpscs-period-top .n-card__content { display: grid !important; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; padding: 14px 16px !important; }
+  .vpscs-period-top .n-card__content hr { display: none !important; }
+  .vpscs-period-top .n-card__content > div { min-width: 0; box-sizing: border-box; }
   .vpscs-period-row { width: 100%; box-sizing: border-box; display: grid !important; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 9px; padding: 12px 13px !important; border-radius: 12px !important; border-width: 1px !important; border-color: #2c3b33 !important; background: #141b17; white-space: nowrap; transition: background .18s ease, border-color .18s ease; }
   .vpscs-period-row::before { content: ''; width: 18px; height: 18px; box-sizing: border-box; border-radius: 50%; border: 1.5px solid #46584d; background: transparent; }
   .vpscs-period-row[class~="border-primary"] { background: #16241c !important; border-color: #4fbd80 !important; }
   .vpscs-period-row[class~="border-primary"]::before { content: '✓'; display: grid; place-items: center; color: #06100a; border-color: #4fbd80; background: #4fbd80; font-size: 12px; font-weight: 900; line-height: 1; }
   .vpscs-period-row > div { min-width: 0; white-space: nowrap; }
-  @media (max-width: 680px) { .vpscs-period-card .n-card__content { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 680px) { .vpscs-period-top .n-card__content { grid-template-columns: 1fr 1fr; } }
   @media (max-width: 820px) {
     .vl-hero-in { grid-template-columns: 1fr; text-align: center; }
     .vl-lead { margin-inline: auto; }
@@ -599,7 +598,7 @@
         }).observe(document.body, { childList: true, subtree: true });
       })();
 
-      // 套餐详情：把「付款周期」移到左栏顶部并横向排列，用对号表示已选中。
+      // 套餐详情：把「付款周期」提到两栏布局上方，整行横向排列，用对号表示已选中。
       function enhancePlanPeriod() {
         if (!planDetailMode()) {
           document.body.classList.remove('vpscs-period-moved');
@@ -612,11 +611,15 @@
           if (header && header.textContent.replace(/\s+/g, '') === '付款周期') periodCard = card;
         });
         if (!periodCard) return;
-        var anchor = periodCard.parentElement;
-        if (anchor && anchor.parentElement) {
-          anchor.classList.add('vpscs-period-anchor');
-          periodCard.classList.add('vpscs-period-card');
-          document.body.classList.add('vpscs-period-moved');
+        if (!periodCard.classList.contains('vpscs-period-top')) {
+          var leftColumn = periodCard.parentElement;
+          var layout = leftColumn && leftColumn.parentElement;
+          // 只在「左侧套餐信息 + 右侧订单栏」的两栏布局里上移，避免搬乱别的页面。
+          if (layout && /grid-cols-/.test(String(layout.className || ''))) {
+            layout.parentNode.insertBefore(periodCard, layout);
+            periodCard.classList.add('vpscs-period-top');
+            document.body.classList.add('vpscs-period-moved');
+          }
         }
         // Rows are re-rendered on every period change, so tag them each pass.
         Array.prototype.slice.call(periodCard.querySelectorAll('.n-card__content > div')).forEach(function (wrapper) {
