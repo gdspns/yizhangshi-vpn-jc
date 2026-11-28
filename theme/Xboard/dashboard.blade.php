@@ -168,9 +168,10 @@
     body.vpscs-profile-page section.cus-scroll-y { grid-template-columns: 1fr; }
   }
   /* 重置订阅的订阅选择框（深浅主题都适配） */
-  .vpscs-reset-pick { display: flex; align-items: center; gap: 10px; margin: 2px 0 14px; max-width: 560px; font-size: 13px; }
-  .vpscs-reset-pick > span { white-space: nowrap; color: rgba(128, 128, 128, .95); }
-  .vpscs-reset-pick select { flex: 1; min-width: 0; min-height: 36px; padding: 0 10px; border: 1px solid rgba(128, 128, 128, .45); border-radius: 8px; background: rgba(128, 128, 128, .08); color: inherit; font-size: 13px; outline: none; }
+  /* 标签在上、选择框在下独占整行：商品名再长也不会被标签挤掉 */
+  .vpscs-reset-pick { display: flex; flex-direction: column; align-items: stretch; gap: 8px; margin: 2px 0 14px; max-width: 560px; font-size: 13px; }
+  .vpscs-reset-pick > span { color: rgba(128, 128, 128, .95); }
+  .vpscs-reset-pick select { display: block; width: 100%; min-width: 0; min-height: 36px; padding: 0 10px; border: 1px solid rgba(128, 128, 128, .45); border-radius: 8px; background: rgba(128, 128, 128, .08); color: inherit; font-size: 13px; outline: none; }
   /* 原生下拉展开后的选项：显式指定深底浅字，避免浅色文字落在浅色底上看不清 */
   .vpscs-reset-pick option { background: #23252e; color: #e6e8f0; }
   .vpscs-reset-note { margin-top: 10px; min-height: 18px; font-size: 13px; color: #34c37a; }
