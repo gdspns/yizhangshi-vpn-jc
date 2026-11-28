@@ -30,7 +30,21 @@ class SoftwareController extends Controller
             'macos_download_url' => 'nullable|url:https|max:2000',
             'update_notes' => 'nullable|string|max:3000',
             'force_update' => 'required|boolean',
+        ], [
+            'api_domain.regex' => '接口域名只填域名，例如 www.example.com，不要带 https:// 或路径',
+            'api_domain.max' => '接口域名太长了',
+            'windows_download_url.url' => 'Windows 下载地址必须是完整的 https 链接',
+            'macos_download_url.url' => 'macOS 下载地址必须是完整的 https 链接',
+            'notice.max' => '公告内容最多 300 字',
+            'popup_content.max' => '弹窗内容最多 1000 字',
         ]);
+
+        // 全局中间件会把空字符串转成 null，而 notice / api_domain /
+        // popup_version / latest_version 这几列是 NOT NULL 且默认 ''，
+        // 直接写 null 会报 23502（之前「保存全部软件配置」失败就是这个）。
+        foreach (['notice', 'api_domain', 'popup_version', 'latest_version'] as $column) {
+            $data[$column] = trim((string) ($data[$column] ?? ''));
+        }
 
         $data['api_domain'] = preg_replace('#^https?://#i', '', trim($data['api_domain'] ?? ''));
         $data['latest_version'] = preg_replace('/^v/i', '', trim($data['latest_version'] ?? ''));

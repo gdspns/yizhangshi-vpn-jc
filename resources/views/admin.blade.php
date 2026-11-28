@@ -409,6 +409,20 @@
       function profileLabel(item, index) {
         return '订阅' + profileNo(item, index) + ' · ' + (item.name || '订阅') + ' · ' + profileDate(item);
       }
+      // 行内订阅清单用的短格式：日期统一 YYYY-MM-DD，流量用 GB/MB 自适应。
+      function profileDay(item) {
+        if (!item || !item.expired_at) return '长期有效';
+        var date = new Date(Number(item.expired_at) * 1000);
+        return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
+      }
+      function profileTraffic(item) {
+        function size(bytes) {
+          var gb = Number(bytes || 0) / 1073741824;
+          return gb >= 1 ? gb.toFixed(2) + ' GB' : (gb * 1024).toFixed(0) + ' MB';
+        }
+        var used = Number((item && item.u) || 0) + Number((item && item.d) || 0);
+        return size(used) + ' / ' + size(item && item.transfer_enable);
+      }
       // 过期订阅不再出现在任何选择框里（后端已过滤，这里兜底防止旧缓存）。
       function liveProfiles(items) {
         var now = Date.now();
@@ -466,18 +480,26 @@
         var table = null;
         var index = -1;
         var emailIndex = -1;
+        var expiryIndex = -1;
         tables.forEach(function (candidate) {
           if (table) return;
           var headers = Array.prototype.slice.call(candidate.querySelectorAll('thead th'));
           if (!headers.length) return;
           var subscriptionIndex = -1;
           var mailIndex = -1;
+          var expireColumn = -1;
           headers.forEach(function (th, i) {
             var text = th.textContent.replace(/\s+/g, '');
             if (subscriptionIndex === -1 && /订阅|subscription/i.test(text)) subscriptionIndex = i;
             if (mailIndex === -1 && /邮箱|email/i.test(text)) mailIndex = i;
+            if (expireColumn === -1 && /接近时间|到期时间|过期时间|expire/i.test(text)) expireColumn = i;
           });
-          if (subscriptionIndex !== -1) { table = candidate; index = subscriptionIndex; emailIndex = mailIndex; }
+          if (subscriptionIndex !== -1) {
+            table = candidate;
+            index = subscriptionIndex;
+            emailIndex = mailIndex;
+            expiryIndex = expireColumn;
+          }
         });
         if (!table || index === -1) return;
         Array.prototype.slice.call(table.querySelectorAll('tbody tr')).forEach(function (row) {
@@ -496,53 +518,101 @@
           if (row.dataset.vpscsSubBound !== '1') {
             row.dataset.vpscsSubBound = '1';
             row.addEventListener('click', function () {
-              var picker = row.querySelector('.vpscs-row-sub select');
-              var id = picker ? picker.value : String((items[0] || {}).id || '');
+              var active = row.querySelector('.vpscs-row-sub-item.is-active');
+              var id = active ? active.dataset.subId : String((items[0] || {}).id || '');
               if (id) sessionStorage.setItem('vpscs_admin_subscription_id', id);
             }, true);
           }
           var existing = cell.querySelector('.vpscs-row-sub');
-          if (items.length < 2) { if (existing) existing.remove(); return; }
+          var expiryCell = expiryIndex >= 0 ? row.children[expiryIndex] : null;
+          if (items.length < 2) {
+            if (existing) existing.remove();
+            restoreRowExpiry(expiryCell);
+            return;
+          }
           var signature = subscriptionSignature(items);
-          // 到期时间/流量被改过以后，选择框里的备注号和日期要跟着变，不能等刷新页面。
+          // 到期时间/流量被改过以后，清单里的备注号和日期要跟着变，不能等刷新页面。
           if (existing) {
-            if (existing.dataset.signature === signature) return;
-            fillRowPicker(existing, items, signature);
+            if (existing.dataset.signature === signature) {
+              syncRowExpiry(expiryCell, items);
+              return;
+            }
+            fillRowPicker(existing, items, signature, expiryCell);
             return;
           }
           var wrap = document.createElement('div');
           wrap.className = 'vpscs-row-sub';
-          fillRowPicker(wrap, items, signature);
+          fillRowPicker(wrap, items, signature, expiryCell);
           cell.appendChild(wrap);
         });
       }
 
-      // 复用同一个 div：只重写选项，保留当前选择。
-      function fillRowPicker(wrap, items, signature) {
-        var previous = wrap.querySelector('select');
-        var keep = previous ? previous.value : '';
-        var select = document.createElement('select');
-        select.title = '选择要管理的订阅（共 ' + items.length + ' 条）';
-        items.forEach(function (item, i) {
-          var option = document.createElement('option');
-          option.value = String(item.id || '');
-          option.textContent = profileLabel(item, i);
-          select.appendChild(option);
-        });
+      // ---- 行内订阅清单：多条订阅全部平铺，点哪条就以哪条为操作对象 ----
+      // 之前是一个 <select>，只能看到当前选中的一条；现在每条订阅独立一行，
+      // 各自带着到期时间和已用流量，切换后「接近时间」列也换成该订阅的日期。
+      function rowSubItemHtml(item, index, active) {
+        return '<button type="button" class="vpscs-row-sub-item' + (active ? ' is-active' : '') + '" data-sub-id="' + escapeAttr(item.id) + '" data-sub-index="' + index + '">'
+          + '<span class="vpscs-row-sub-no">订阅' + profileNo(item, index) + '</span>'
+          + '<span class="vpscs-row-sub-name">' + escapeAttr(item.name || '订阅') + '</span>'
+          + '<span class="vpscs-row-sub-meta">' + profileDay(item) + ' · ' + profileTraffic(item) + '</span>'
+          + '</button>';
+      }
+      function escapeAttr(value) {
+        return String(value == null ? '' : value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      }
+      // 单元格里可能包着 <span>/<button>，只替换最深的那段文字，保留原有样式。
+      function setCellText(cell, text) {
+        if (!cell) return;
+        var walker = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT, null);
+        var node; var target = null;
+        while ((node = walker.nextNode())) { if (/\S/.test(node.nodeValue)) target = node; }
+        if (target) target.nodeValue = text; else cell.textContent = text;
+      }
+      function restoreRowExpiry(cell) {
+        if (!cell || cell.dataset.vpscsExpiryOriginal === undefined) return;
+        setCellText(cell, cell.dataset.vpscsExpiryOriginal);
+        delete cell.dataset.vpscsExpiryOriginal;
+        cell.removeAttribute('title');
+        cell.classList.remove('is-sub-date');
+      }
+      // 「接近时间」列跟随当前选中的订阅；原来那格是主账号的日期，先存起来以便还原。
+      function syncRowExpiry(cell, items, forceId) {
+        if (!cell) return;
+        var wrap = cell.closest('tr') && cell.closest('tr').querySelector('.vpscs-row-sub');
+        var active = wrap && wrap.querySelector('.vpscs-row-sub-item.is-active');
+        var id = forceId || (active && active.dataset.subId);
+        var item = null;
+        for (var i = 0; i < items.length; i += 1) { if (String(items[i].id) === String(id)) { item = items[i]; break; } }
+        if (!item) return;
+        if (cell.dataset.vpscsExpiryOriginal === undefined) cell.dataset.vpscsExpiryOriginal = cell.textContent.trim();
+        setCellText(cell, profileDay(item));
+        cell.title = '显示的是所选订阅（订阅' + profileNo(item, 0) + '）的到期时间';
+        cell.classList.add('is-sub-date');
+      }
+
+      function fillRowPicker(wrap, items, signature, expiryCell) {
+        var previous = wrap.querySelector('.vpscs-row-sub-item.is-active');
+        var keep = previous ? previous.dataset.subId : '';
         var keepAlive = items.some(function (item) { return String(item.id) === keep; });
-        select.value = keepAlive ? keep : String((items[0] || {}).id || '');
-        select.classList.add('is-picked');
-        select.addEventListener('change', function () {
-          sessionStorage.setItem('vpscs_admin_subscription_id', select.value);
-        });
+        var chosen = keepAlive ? keep : String((items[0] || {}).id || '');
         wrap.dataset.signature = signature;
-        wrap.replaceChildren(select);
-        // 之前选中的订阅到期被隐藏了：把操作目标挪到第一条，别让后续请求打到过期档案上。
-        var previousIds = previous ? Array.prototype.map.call(previous.options, function (option) { return option.value; }) : [];
-        var stored = sessionStorage.getItem('vpscs_admin_subscription_id');
-        if (!keepAlive && previousIds.indexOf(keep) !== -1 && stored === keep) {
-          sessionStorage.setItem('vpscs_admin_subscription_id', select.value);
-        }
+        wrap.innerHTML = '<div class="vpscs-row-sub-head">订阅 ' + items.length + ' 条 · 点一条切换操作对象</div>'
+          + items.map(function (item, i) { return rowSubItemHtml(item, i, String(item.id) === chosen); }).join('');
+        wrap.querySelectorAll('.vpscs-row-sub-item').forEach(function (button) {
+          button.addEventListener('click', function (event) {
+            event.preventDefault();
+            event.stopPropagation();
+            var id = button.dataset.subId;
+            wrap.querySelectorAll('.vpscs-row-sub-item').forEach(function (other) {
+              other.classList.toggle('is-active', other === button);
+            });
+            sessionStorage.setItem('vpscs_admin_subscription_id', id);
+            syncRowExpiry(expiryCell, items, id);
+          });
+        });
+        // 选中的订阅到期被隐藏时，把操作目标挪到第一条，别让请求打到过期档案上。
+        sessionStorage.setItem('vpscs_admin_subscription_id', chosen);
+        syncRowExpiry(expiryCell, items, chosen);
       }
 
       // The admin list sometimes renders before our capture hooks see the
@@ -812,9 +882,15 @@
     .vpscs-admin-subscriptions { margin:0 0 18px; padding:14px; display:grid; gap:10px; border:1px solid var(--el-border-color); border-radius:9px; }
     .vpscs-admin-subscriptions select, .vpscs-admin-subscriptions input { min-height:38px; padding:0 10px; color:var(--el-text-color-primary); background:var(--el-bg-color); border:1px solid var(--el-border-color); border-radius:7px; }
     .vpscs-admin-subscription-detail { display:grid; gap:6px; }
-    .vpscs-row-sub { margin-top:6px; }
-    .vpscs-row-sub select { max-width:190px; min-height:26px; padding:0 6px; font-size:12px; color:var(--el-text-color-primary, #dbe4f2); background:var(--el-bg-color, #101a2b); border:1px solid var(--el-border-color, #2b3a52); border-radius:6px; }
-    .vpscs-row-sub select.is-picked { border-color:#7c5cff; box-shadow:0 0 0 2px rgba(124,92,255,.18); }
+    .vpscs-row-sub { margin-top:6px; display:flex; flex-direction:column; gap:4px; max-width:240px; }
+    .vpscs-row-sub-head { font-size:11px; line-height:1.4; color:var(--el-text-color-secondary, #8a93a6); }
+    .vpscs-row-sub-item { display:flex; flex-wrap:wrap; align-items:center; gap:6px; width:100%; padding:4px 8px; font-size:12px; line-height:1.5; text-align:left; cursor:pointer; color:var(--el-text-color-primary, #dbe4f2); background:var(--el-bg-color, #101a2b); border:1px solid var(--el-border-color, #2b3a52); border-radius:6px; }
+    .vpscs-row-sub-item:hover { border-color:#7c5cff88; }
+    .vpscs-row-sub-item.is-active { border-color:#7c5cff; background:rgba(124,92,255,.16); box-shadow:0 0 0 2px rgba(124,92,255,.18); }
+    .vpscs-row-sub-no { font-weight:600; }
+    .vpscs-row-sub-name { max-width:130px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .vpscs-row-sub-meta { flex-basis:100%; font-size:11px; color:var(--el-text-color-secondary, #8a93a6); font-variant-numeric:tabular-nums; }
+    td.is-sub-date { text-decoration:underline dotted currentColor; text-underline-offset:3px; }
     /* 工单邮件通知卡片 */
     .vpscs-tn { margin:0 0 18px; padding:16px 18px; display:grid; gap:10px; border:1px solid hsl(var(--border, 214 20% 28%)); border-radius:12px; background:hsl(var(--card, 222 30% 13%)); color:hsl(var(--card-foreground, 210 30% 92%)); }
     .vpscs-tn-head { display:flex; align-items:center; gap:10px; }

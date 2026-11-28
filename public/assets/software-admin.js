@@ -24,7 +24,16 @@
     init.headers = Object.assign({ 'Accept': 'application/json', 'Content-Type': 'application/json', 'Authorization': token() }, init.headers || {});
     return fetch(options.apiBase + '/' + path, init).then(async function (response) {
       var payload = await response.json().catch(function () { return {}; });
-      if (!response.ok) throw new Error(payload.message || payload.error || '请求失败（' + response.status + '）');
+      if (!response.ok) {
+        var message = payload.message || payload.error || '请求失败（' + response.status + '）';
+        // Laravel 的 422 只给 rule key（validation.regex 之类），把首个字段报错抖出来。
+        if (payload.errors && typeof payload.errors === 'object') {
+          var field = Object.keys(payload.errors)[0];
+          var detail = field && payload.errors[field] && payload.errors[field][0];
+          if (detail && detail !== message) message = detail;
+        }
+        throw new Error(message);
+      }
       return Object.prototype.hasOwnProperty.call(payload, 'data') ? payload.data : payload;
     });
   }
