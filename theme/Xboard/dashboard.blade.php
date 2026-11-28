@@ -519,7 +519,6 @@
         });
       }
 
-      var shelfPaintedKey = '';
       function shelfHeadHtml() {
         var options = [['all', '全部'], ['periodic', '周期性'], ['onetime', '一次性']];
         return '<div class="vpscs-shelf-head">'
@@ -546,8 +545,10 @@
         var shelf = document.getElementById('vpscs-plan-shelf');
         if (!shelf || !shelfPlans) return;
         var key = shelfFilter + '|' + JSON.stringify(shelfPlans);
-        if (key === shelfPaintedKey) return;
-        shelfPaintedKey = key;
+        // 指纹记在元素自身的 dataset 上：Vue 切走再切回来时会把架子节点销毁重建，
+        // 若用闭包变量记指纹，新节点会被误判为「已画过」导致商品不显示（必须刷新页面）。
+        if (key === shelf.dataset.vpscsPainted) return;
+        shelf.dataset.vpscsPainted = key;
         var periodic = shelfFilter === 'onetime' ? [] : filterPlans(shelfPlans, 'periodic');
         var onetime = shelfFilter === 'periodic' ? [] : filterPlans(shelfPlans, 'onetime');
         var html = shelfHeadHtml() + shelfSectionHtml('periodic', periodic) + shelfSectionHtml('onetime', onetime);
@@ -563,7 +564,7 @@
         shelf.innerHTML = shelfHeadHtml() + '<p class="vl-empty">正在加载套餐…</p>';
         nativeFetch('/api/v1/user/plan/fetch', { headers: authHeaders(), credentials: 'same-origin', cache: 'no-store' })
           .then(function (r) { if (!r.ok) throw new Error(r.status === 403 ? '登录已过期，请重新登录' : '套餐加载失败（' + r.status + '）'); return r.json(); })
-          .then(function (payload) { shelfPlans = payload.data || []; shelfPaintedKey = ''; paintPlanShelf(); })
+          .then(function (payload) { shelfPlans = payload.data || []; var painted = document.getElementById('vpscs-plan-shelf'); if (painted) painted.dataset.vpscsPainted = ''; paintPlanShelf(); })
           .catch(function (error) { shelf.innerHTML = shelfHeadHtml() + '<p class="vl-empty">' + escapeHtml(error.message || '套餐加载失败') + '</p>'; })
           .finally(function () { shelfLoading = false; });
       }
@@ -598,8 +599,10 @@
             // Force a re-fetch next time: an administrator may have edited a
             // product in the meantime, and the card must follow that change.
             shelfPlans = null;
-            shelfPaintedKey = '';
             shelfLoading = false;
+          } else {
+            // Vue 切路由时会把架子节点一起销毁：这种情况拿不到节点，
+            // 但 shelfPlans 缓存保留即可，重新进入时新节点没有绘制指纹会自动重画。
           }
           document.body.classList.remove('vpscs-shelf-mode');
           restoreNativePlanGrid();
@@ -614,7 +617,8 @@
         if (filter) {
           event.preventDefault();
           shelfFilter = filter.getAttribute('data-shelf-filter');
-          shelfPaintedKey = '';
+          var paintedShelf = document.getElementById('vpscs-plan-shelf');
+          if (paintedShelf) paintedShelf.dataset.vpscsPainted = '';
           paintPlanShelf();
           return;
         }
