@@ -80,6 +80,8 @@ class TicketService
                 throw new ApiException('工单消息创建失败');
             }
             DB::commit();
+            // 新工单提醒管理员（收件地址在「工单管理」页顶部配置，失败不影响下单流程）。
+            TicketNotifyService::notifyNewTicket($ticket);
             return $ticket;
         } catch (\Exception $e) {
             DB::rollBack();

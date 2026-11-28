@@ -573,9 +573,214 @@
         }, 600);
       }
 
+      // ---- 工单邮件通知 ----
+      // 工单管理页顶部插一张卡片：填收件邮箱，用户提交新工单就发邮件提醒。
+      // 发信走站点自己的 SMTP（系统设置 → 邮件），不用另建邮箱。
+      var ticketNotify = { loaded: false, loading: false, emails: [], smtpReady: false, from: '', smtp: {} };
+
+      function ticketEndpoint(path) {
+        var secure = (window.settings && window.settings.secure_path) || '';
+        return '/api/v2/' + secure + path;
+      }
+
+      function ticketRequest(method, path, body) {
+        var headers = { Authorization: adminToken(), 'Content-Language': 'zh-CN' };
+        if (body) headers['Content-Type'] = 'application/json';
+        return nativeFetch(ticketEndpoint(path), {
+          method: method,
+          headers: headers,
+          credentials: 'same-origin',
+          body: body ? JSON.stringify(body) : undefined,
+        }).then(function (response) {
+          return response.text().then(function (text) {
+            var payload = {};
+            try { payload = JSON.parse(text); } catch (_) {}
+            if (!response.ok || payload.status === 'fail') {
+              throw new Error(payload.message || ('请求失败（' + response.status + '）'));
+            }
+            return payload.data;
+          });
+        });
+      }
+
+      // 工单列表的表头是「工单号 / 主题 / 优先级 / 状态」，用表头认页面，
+      // 不会误伤用户列表（那个是「邮箱 / 订阅」）。
+      function ticketTable() {
+        var tables = document.querySelectorAll('#root table');
+        for (var i = 0; i < tables.length; i += 1) {
+          var head = tables[i].querySelector('thead');
+          if (!head) continue;
+          var text = head.textContent.replace(/\s+/g, '');
+          if (/工单号/.test(text) || (/主题/.test(text) && /优先级/.test(text))) return tables[i];
+        }
+        return null;
+      }
+
+      function ticketNotifyStatus(message, tone) {
+        var panel = document.getElementById('vpscs-ticket-notify');
+        if (!panel) return;
+        var node = panel.querySelector('.vpscs-tn-status');
+        node.textContent = message || '';
+        node.className = 'vpscs-tn-status' + (tone ? ' is-' + tone : '');
+      }
+
+      function paintTicketNotifyState() {
+        var panel = document.getElementById('vpscs-ticket-notify');
+        if (!panel) return;
+        var badge = panel.querySelector('.vpscs-tn-badge');
+        if (!ticketNotify.smtpReady) {
+          badge.textContent = '未配置发信';
+          badge.className = 'vpscs-tn-badge is-warn';
+          ticketNotifyStatus('还没配置发信服务器：展开下面的「发信服务器设置」填好 SMTP（用本站域名邮箱即可），保存后发一封测试邮件确认。', 'warn');
+        } else if (ticketNotify.emails.length) {
+          badge.textContent = '已开启 · ' + ticketNotify.emails.length + ' 个邮箱';
+          badge.className = 'vpscs-tn-badge is-ok';
+          ticketNotifyStatus('新工单会立即发到：' + ticketNotify.emails.join('、') + (ticketNotify.from ? '（发件人 ' + ticketNotify.from + '）' : ''), 'ok');
+        } else {
+          badge.textContent = '待填邮箱';
+          badge.className = 'vpscs-tn-badge';
+          ticketNotifyStatus('填一个邮箱保存后即开启通知。', '');
+        }
+        var summary = panel.querySelector('.vpscs-tn-smtp-summary');
+        if (summary) {
+          var host = (ticketNotify.smtp && ticketNotify.smtp.host) || '';
+          summary.textContent = host
+            ? '发信服务器：' + host + ((ticketNotify.smtp && ticketNotify.smtp.port) ? ':' + ticketNotify.smtp.port : '')
+            : '发信服务器设置（SMTP，用自己网站域名邮箱即可）';
+        }
+      }
+
+      function fillTicketNotifyForm(panel) {
+        var smtp = ticketNotify.smtp || {};
+        var map = { host: smtp.host, port: smtp.port, encryption: smtp.encryption, username: smtp.username, from: smtp.from };
+        Object.keys(map).forEach(function (key) {
+          var field = panel.querySelector('.vpscs-tn-smtp [data-field="' + key + '"]');
+          if (!field || document.activeElement === field) return;
+          field.value = map[key] || '';
+        });
+        var password = panel.querySelector('.vpscs-tn-smtp [data-field="password"]');
+        if (password && document.activeElement !== password) {
+          password.value = '';
+          password.placeholder = smtp.has_password ? '已设置，留空表示不修改' : 'SMTP 密码 / 授权码';
+        }
+        var emails = panel.querySelector('.vpscs-tn-input');
+        if (emails && document.activeElement !== emails) emails.value = ticketNotify.emails.join(', ');
+      }
+
+      function buildTicketNotifyPanel(table) {
+        var panel = document.createElement('section');
+        panel.id = 'vpscs-ticket-notify';
+        panel.className = 'vpscs-tn';
+        panel.innerHTML = '<div class="vpscs-tn-head"><strong class="vpscs-tn-title">工单邮件通知</strong><span class="vpscs-tn-badge">待填邮箱</span></div>'
+          + '<p class="vpscs-tn-desc">用户提交新工单时立刻发邮件到下面的地址。发信走本站的 SMTP，用自己域名的邮箱即可，不需要另建服务。</p>'
+          + '<div class="vpscs-tn-row"><input class="vpscs-tn-input" type="text" spellcheck="false" placeholder="接收通知的邮箱，例如 admin@your-domain.com, ops@your-domain.com">'
+          + '<button type="button" class="vpscs-tn-btn is-primary" data-act="save">保存</button>'
+          + '<button type="button" class="vpscs-tn-btn" data-act="test">发送测试邮件</button></div>'
+          + '<details class="vpscs-tn-smtp"><summary class="vpscs-tn-smtp-summary">发信服务器设置（SMTP，用自己网站域名邮箱即可）</summary>'
+          + '<div class="vpscs-tn-grid">'
+          + '<label>SMTP 服务器<input data-field="host" type="text" spellcheck="false" placeholder="smtp.exmail.qq.com"></label>'
+          + '<label>端口<input data-field="port" type="text" inputmode="numeric" placeholder="465"></label>'
+          + '<label>加密<select data-field="encryption"><option value="">自动</option><option value="ssl">SSL</option><option value="tls">TLS</option></select></label>'
+          + '<label>账号<input data-field="username" type="text" spellcheck="false" placeholder="admin@your-domain.com"></label>'
+          + '<label>密码 / 授权码<input data-field="password" type="password" spellcheck="false" placeholder="SMTP 密码 / 授权码"></label>'
+          + '<label>发件人地址<input data-field="from" type="text" spellcheck="false" placeholder="admin@your-domain.com"></label>'
+          + '</div><small class="vpscs-tn-tip">常见填法：腾讯企业邮 smtp.exmail.qq.com:465(SSL)；阿里企业邮 smtp.qiye.aliyun.com:465(SSL)；Gmail smtp.gmail.com:587(TLS，需应用专用密码)。密码留空表示保持原来的不变。</small></details>'
+          + '<p class="vpscs-tn-status"></p>';
+
+        function collectSmtp() {
+          var read = function (field) {
+            var node = panel.querySelector('.vpscs-tn-smtp [data-field="' + field + '"]');
+            return node ? node.value.trim() : '';
+          };
+          return {
+            host: read('host'), port: read('port'), encryption: read('encryption'),
+            username: read('username'), password: read('password'), from: read('from'),
+          };
+        }
+
+        panel.addEventListener('click', function (event) {
+          var button = event.target.closest('[data-act]');
+          if (!button) return;
+          var act = button.getAttribute('data-act');
+          if (act === 'save') {
+            button.disabled = true;
+            ticketNotifyStatus('正在保存…', '');
+            var smtpDraft = collectSmtp();
+            var payload = { emails: panel.querySelector('.vpscs-tn-input').value };
+            // 只在真的填了发信服务器时才回传，避免只改收件邮箱把 SMTP 清空。
+            if (smtpDraft.host || smtpDraft.username || smtpDraft.from) payload.smtp = smtpDraft;
+            ticketRequest('POST', '/ticket/notify', payload).then(function (data) {
+              ticketNotify.emails = (data && data.emails) || [];
+              ticketNotify.smtpReady = !!(data && data.smtp_ready);
+              ticketNotify.from = (data && data.from) || '';
+              ticketNotify.smtp = collectSmtp();
+              ticketNotify.smtp.has_password = true;
+              var password = panel.querySelector('.vpscs-tn-smtp [data-field="password"]');
+              if (password) { password.value = ''; password.placeholder = '已设置，留空表示不修改'; }
+              paintTicketNotifyState();
+              ticketNotifyStatus('已保存。', 'ok');
+            }).catch(function (error) {
+              ticketNotifyStatus(error.message || '保存失败', 'error');
+            }).finally(function () { button.disabled = false; });
+            return;
+          }
+          if (act === 'test') {
+            if (!ticketNotify.emails.length) {
+              ticketNotifyStatus('请先填写并保存收件邮箱。', 'warn');
+              return;
+            }
+            button.disabled = true;
+            ticketNotifyStatus('正在发送测试邮件…', '');
+            ticketRequest('POST', '/ticket/notify/test').then(function (data) {
+              var results = (data && data.results) || [];
+              var failed = results.filter(function (item) { return item.error; });
+              if (failed.length) {
+                ticketNotifyStatus('部分发送失败：' + failed.map(function (item) { return item.email + '（' + item.error + '）'; }).join('；'), 'error');
+              } else {
+                ticketNotifyStatus('测试邮件已发出，请检查收件箱（也看一下垃圾箱）。', 'ok');
+              }
+            }).catch(function (error) {
+              ticketNotifyStatus(error.message || '测试邮件发送失败', 'error');
+            }).finally(function () { button.disabled = false; });
+          }
+        });
+
+        // 放在页面标题下面，找不到标题就放在表格上方。
+        var heading = Array.prototype.slice.call(document.querySelectorAll('#root h1, #root h2, #root h3'))
+          .find(function (node) { return node.textContent.trim() === '工单管理' && !node.closest('aside,nav'); });
+        var block = heading;
+        if (heading && heading.parentElement && heading.parentElement.textContent.replace(/\s+/g, '').length <= 160) {
+          block = heading.parentElement;
+        }
+        if (block && block.parentNode) block.parentNode.insertBefore(panel, block.nextSibling);
+        else table.parentNode.insertBefore(panel, table);
+        return panel;
+      }
+
+      function renderTicketNotifier() {
+        var table = ticketTable();
+        var panel = document.getElementById('vpscs-ticket-notify');
+        if (!table) { if (panel) panel.remove(); return; }
+        if (!panel) panel = buildTicketNotifyPanel(table);
+        if (ticketNotify.loaded || ticketNotify.loading) return;
+        ticketNotify.loading = true;
+        ticketRequest('GET', '/ticket/notify').then(function (data) {
+          ticketNotify.emails = (data && data.emails) || [];
+          ticketNotify.smtpReady = !!(data && data.smtp_ready);
+          ticketNotify.from = (data && data.from) || '';
+          ticketNotify.smtp = (data && data.smtp) || {};
+          ticketNotify.loaded = true;
+          fillTicketNotifyForm(panel);
+          paintTicketNotifyState();
+        }).catch(function (error) {
+          ticketNotifyStatus(error.message || '读取通知设置失败', 'error');
+        }).finally(function () { ticketNotify.loading = false; });
+      }
+
       function refreshAdminEnhancements() {
         renderSubscriptionPicker();
         renderRowSubscriptionPickers();
+        renderTicketNotifier();
       }
       new MutationObserver(refreshAdminEnhancements).observe(document.body, { childList: true, subtree: true });
       document.addEventListener('click', function (event) {
@@ -600,6 +805,32 @@
     .vpscs-row-sub { margin-top:6px; }
     .vpscs-row-sub select { max-width:190px; min-height:26px; padding:0 6px; font-size:12px; color:var(--el-text-color-primary, #dbe4f2); background:var(--el-bg-color, #101a2b); border:1px solid var(--el-border-color, #2b3a52); border-radius:6px; }
     .vpscs-row-sub select.is-picked { border-color:#7c5cff; box-shadow:0 0 0 2px rgba(124,92,255,.18); }
+    /* 工单邮件通知卡片 */
+    .vpscs-tn { margin:0 0 18px; padding:16px 18px; display:grid; gap:10px; border:1px solid hsl(var(--border, 214 20% 28%)); border-radius:12px; background:hsl(var(--card, 222 30% 13%)); color:hsl(var(--card-foreground, 210 30% 92%)); }
+    .vpscs-tn-head { display:flex; align-items:center; gap:10px; }
+    .vpscs-tn-title { font-size:14px; font-weight:700; }
+    .vpscs-tn-badge { padding:2px 9px; border:1px solid hsl(var(--border, 214 20% 28%)); border-radius:999px; font-size:11px; font-weight:700; color:hsl(var(--muted-foreground, 215 15% 65%)); }
+    .vpscs-tn-badge.is-ok { border-color:rgba(0,168,120,.55); color:#12b886; background:rgba(0,168,120,.12); }
+    .vpscs-tn-badge.is-warn { border-color:rgba(255,157,0,.5); color:#e8a33d; background:rgba(255,157,0,.12); }
+    .vpscs-tn-desc { margin:0; font-size:12px; line-height:1.65; color:hsl(var(--muted-foreground, 215 15% 65%)); }
+    .vpscs-tn-row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+    .vpscs-tn-input { flex:1 1 320px; min-height:36px; padding:0 12px; font-size:13px; color:hsl(var(--foreground, 210 30% 92%)); background:hsl(var(--background, 222 30% 10%)); border:1px solid hsl(var(--border, 214 20% 28%)); border-radius:8px; }
+    .vpscs-tn-input:focus { outline:none; border-color:#7c5cff; box-shadow:0 0 0 2px rgba(124,92,255,.18); }
+    .vpscs-tn-btn { min-height:36px; padding:0 14px; font-size:13px; font-weight:600; color:hsl(var(--foreground, 210 30% 92%)); background:transparent; border:1px solid hsl(var(--border, 214 20% 28%)); border-radius:8px; cursor:pointer; }
+    .vpscs-tn-btn:hover:not(:disabled) { background:rgba(124,92,255,.10); }
+    .vpscs-tn-btn:disabled { opacity:.55; cursor:default; }
+    .vpscs-tn-btn.is-primary { color:hsl(var(--primary-foreground, 210 40% 98%)); background:hsl(var(--primary, 221 83% 53%)); border-color:transparent; }
+    .vpscs-tn-status { margin:0; min-height:16px; font-size:12px; line-height:1.6; color:hsl(var(--muted-foreground, 215 15% 65%)); }
+    .vpscs-tn-status.is-ok { color:#12b886; }
+    .vpscs-tn-status.is-warn { color:#e8a33d; }
+    .vpscs-tn-status.is-error { color:#f0596b; }
+    .vpscs-tn-smtp { padding-top:10px; border-top:1px dashed hsl(var(--border, 214 20% 28%)); }
+    .vpscs-tn-smtp-summary { cursor:pointer; font-size:12px; font-weight:600; color:hsl(var(--muted-foreground, 215 15% 65%)); }
+    .vpscs-tn-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin-top:12px; }
+    .vpscs-tn-grid label { display:grid; gap:5px; font-size:12px; color:hsl(var(--muted-foreground, 215 15% 65%)); }
+    .vpscs-tn-grid input, .vpscs-tn-grid select { min-height:34px; padding:0 10px; font-size:13px; color:hsl(var(--foreground, 210 30% 92%)); background:hsl(var(--background, 222 30% 10%)); border:1px solid hsl(var(--border, 214 20% 28%)); border-radius:8px; }
+    .vpscs-tn-tip { display:block; margin-top:10px; font-size:11px; line-height:1.7; color:hsl(var(--muted-foreground, 215 15% 65%)); }
+    @media (max-width:900px) { .vpscs-tn-grid { grid-template-columns:1fr 1fr; } }
     html.dark #root .bg-white, html.dark #root [class~="bg-white"],
     html.dark #root .bg-gray-50, html.dark #root [class~="bg-gray-50"],
     html.dark #root .bg-green-50, html.dark #root [class~="bg-green-50"] {

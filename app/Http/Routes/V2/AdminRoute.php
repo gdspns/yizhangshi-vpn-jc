@@ -180,6 +180,10 @@ class AdminRoute
                 $router->any('/fetch', [TicketController::class, 'fetch']);
                 $router->post('/reply', [TicketController::class, 'reply']);
                 $router->post('/close', [TicketController::class, 'close']);
+                // 工单邮件通知：新工单提醒收件地址配置 + 测试发送
+                $router->get('/notify', [TicketController::class, 'notifyConfig']);
+                $router->post('/notify', [TicketController::class, 'saveNotify']);
+                $router->post('/notify/test', [TicketController::class, 'testNotify']);
             });
 
             // Coupon
