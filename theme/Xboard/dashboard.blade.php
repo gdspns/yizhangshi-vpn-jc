@@ -534,8 +534,14 @@
         }).finally(function () { subscriptionRenderBusy = false; });
       }
 
-      // 复制订阅：和「捷径 - 一键订阅」的弹窗一样，先弹窗再复制，移动端也能长按选中。
+      // 订阅操作弹窗：对齐原「一键订阅」弹窗的四项入口（扫码 / 复制 / 导入 Clash / 导入 Hiddify）+ 使用教程。
       var copyDialog = null;
+      var copyTarget = { url: '', name: '' };
+      var ICON_QR = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 14h3v3h-3zM20 14h1M14 20h1M18 18h3v3h-3z"/></svg>';
+      var ICON_COPY = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="8" y="3" width="12" height="15" rx="2.5"/><path d="M16 21H6.5A2.5 2.5 0 0 1 4 18.5V8"/></svg>';
+      var ICON_CLASH = '<span class="vpscs-client-icon is-clash"></span>';
+      var ICON_HIDDIFY = '<span class="vpscs-client-icon is-hiddify"></span>';
+
       function closeCopyDialog() {
         if (!copyDialog) return;
         copyDialog.classList.remove('is-open');
@@ -561,45 +567,112 @@
         document.body.removeChild(area);
         return ok;
       }
+      function ensureQrLib(done) {
+        if (window.qrcode) { done(null); return; }
+        var script = document.createElement('script');
+        script.src = '/theme/{{$theme}}/assets/qrcode.js?v={{$assetVer}}';
+        script.onload = function () { done(window.qrcode ? null : new Error('二维码组件加载失败')); };
+        script.onerror = function () { done(new Error('二维码组件加载失败')); };
+        document.head.appendChild(script);
+      }
+      function renderCopyMenu() {
+        var body = copyDialog.querySelector('.vpscs-copy-body');
+        body.className = 'vpscs-copy-body';
+        body.innerHTML = '<div class="vpscs-copy-list">'
+          + '<button type="button" class="vpscs-copy-item" data-act="qr"><span class="vpscs-copy-ico">' + ICON_QR + '</span><span class="vpscs-copy-label">扫描二维码订阅</span></button>'
+          + '<button type="button" class="vpscs-copy-item" data-act="copy"><span class="vpscs-copy-ico">' + ICON_COPY + '</span><span class="vpscs-copy-label">复制订阅地址</span></button>'
+          + '<button type="button" class="vpscs-copy-item" data-act="clash"><span class="vpscs-copy-ico">' + ICON_CLASH + '</span><span class="vpscs-copy-label">导入到 Clash</span></button>'
+          + '<button type="button" class="vpscs-copy-item" data-act="hiddify"><span class="vpscs-copy-ico">' + ICON_HIDDIFY + '</span><span class="vpscs-copy-label">导入到 Hiddify</span></button>'
+          + '</div>';
+      }
+      function renderCopyQr() {
+        var body = copyDialog.querySelector('.vpscs-copy-body');
+        body.innerHTML = '<div class="vpscs-copy-qr"><div class="vpscs-copy-qr-box">正在生成二维码…</div>'
+          + '<p class="vpscs-copy-qr-tip">使用支持扫码的客户端进行订阅</p>'
+          + '<button type="button" class="vpscs-copy-back">返回</button></div>';
+        var box = body.querySelector('.vpscs-copy-qr-box');
+        ensureQrLib(function (error) {
+          if (error) { box.textContent = error.message; return; }
+          try {
+            var qr = window.qrcode(0, 'M');
+            qr.addData(copyTarget.url);
+            qr.make();
+            box.innerHTML = qr.createSvgTag({ cellSize: 6, margin: 2, scalable: true });
+          } catch (_) { box.textContent = '二维码生成失败，请改用「复制订阅地址」'; }
+        });
+      }
       function openCopyDialog(url, title) {
+        copyTarget.url = url || '';
+        copyTarget.name = title || '';
         if (!copyDialog) {
           copyDialog = document.createElement('div');
           copyDialog.className = 'vpscs-copy-modal';
           copyDialog.innerHTML = '<div class="vpscs-copy-backdrop" data-close></div>'
-            + '<div class="vpscs-copy-panel" role="dialog" aria-modal="true" aria-label="复制订阅链接">'
-            + '<div class="vpscs-copy-head"><strong>复制订阅链接</strong><button type="button" class="vpscs-copy-close" data-close aria-label="关闭">×</button></div>'
-            + '<p class="vpscs-copy-sub"></p>'
-            + '<textarea class="vpscs-copy-field" readonly rows="3" spellcheck="false"></textarea>'
-            + '<p class="vpscs-copy-hint">复制后粘贴到 v2rayN / Clash Verge / Shadowrocket 等客户端的「从剪贴板导入」即可。</p>'
-            + '<div class="vpscs-copy-actions"><button type="button" class="vpscs-copy-btn vpscs-copy-confirm">复制链接</button><button type="button" class="vpscs-copy-btn is-ghost" data-close>关闭</button></div>'
+            + '<div class="vpscs-copy-panel" role="dialog" aria-modal="true" aria-label="订阅操作">'
+            + '<div class="vpscs-copy-head"><span class="vpscs-copy-title"></span><button type="button" class="vpscs-copy-close" data-close aria-label="关闭">×</button></div>'
+            + '<div class="vpscs-copy-body"></div>'
+            + '<button type="button" class="vpscs-copy-tutorial">不会使用，查看使用教程</button>'
             + '</div>';
           document.body.appendChild(copyDialog);
-          copyDialog.addEventListener('click', function (event) { if (event.target.closest('[data-close]')) closeCopyDialog(); });
-          copyDialog.querySelector('.vpscs-copy-confirm').addEventListener('click', function () {
-            var field = copyDialog.querySelector('.vpscs-copy-field');
-            var button = copyDialog.querySelector('.vpscs-copy-confirm');
-            copyText(field.value).then(function (ok) {
-              button.textContent = ok ? '已复制 ✓' : '请长按选中复制';
-              button.classList.toggle('is-ok', !!ok);
-              field.focus();
-              field.select();
-              setTimeout(function () { button.textContent = '复制链接'; button.classList.remove('is-ok'); }, 2000);
-            });
+          copyDialog.addEventListener('click', function (event) {
+            if (event.target.closest('[data-close]')) { closeCopyDialog(); return; }
+            if (event.target.closest('.vpscs-copy-back')) { renderCopyMenu(); return; }
+            var item = event.target.closest('.vpscs-copy-item');
+            if (item) { runCopyAction(item); return; }
+            if (event.target.closest('.vpscs-copy-tutorial')) {
+              closeCopyDialog();
+              landingRequested = false;
+              document.body.classList.remove('vpscs-landing-mode');
+              loadUserApp();
+              location.hash = '#/knowledge';
+            }
           });
           addEventListener('keydown', function (event) { if (event.key === 'Escape') closeCopyDialog(); });
         }
-        copyDialog.querySelector('.vpscs-copy-sub').textContent = title;
-        copyDialog.querySelector('.vpscs-copy-field').value = url || '';
+        copyDialog.querySelector('.vpscs-copy-title').textContent = copyTarget.name ? copyTarget.name + ' · 订阅操作' : '订阅操作';
+        renderCopyMenu();
         copyDialog.classList.add('is-open');
         document.body.classList.add('vpscs-modal-open');
-        setTimeout(function () {
-          var field = copyDialog.querySelector('.vpscs-copy-field');
-          field.focus();
-          field.select();
-        }, 40);
+      }
+      function runCopyAction(item) {
+        var act = item.getAttribute('data-act');
+        var label = item.querySelector('.vpscs-copy-label');
+        if (act === 'qr') { renderCopyQr(); return; }
+        if (act === 'copy') {
+          copyText(copyTarget.url).then(function (ok) {
+            if (ok) {
+              label.textContent = '已复制订阅地址 ✓';
+              item.classList.add('is-ok');
+              setTimeout(function () { label.textContent = '复制订阅地址'; item.classList.remove('is-ok'); }, 2000);
+            } else {
+              label.textContent = '复制失败，请长按弹窗内地址';
+              var body = copyDialog.querySelector('.vpscs-copy-body');
+              if (!body.querySelector('.vpscs-copy-fallback')) {
+                var fallback = document.createElement('textarea');
+                fallback.className = 'vpscs-copy-fallback';
+                fallback.readOnly = true;
+                fallback.rows = 3;
+                fallback.value = copyTarget.url;
+                body.appendChild(fallback);
+              }
+              var field = body.querySelector('.vpscs-copy-fallback');
+              field.focus();
+              field.select();
+            }
+          });
+          return;
+        }
+        var appName = (window.settings && window.settings.title) || '订阅';
+        if (act === 'clash') {
+          location.href = 'clash://install-config?url=' + encodeURIComponent(copyTarget.url) + '&name=' + encodeURIComponent(appName);
+          return;
+        }
+        if (act === 'hiddify') {
+          location.href = 'hiddify://import/' + copyTarget.url + '#' + encodeURIComponent(appName);
+        }
       }
 
-      // 「捷径」里的一键订阅/续费订阅已经并入订阅卡，隐藏这两行避免入口重复。
+      // 「捷径」里的一键订阅/续费订阅已经并入订阅卡，整行（含可点击外壳）都隐藏，不留空白可点区域。
       function pruneShortcutRows() {
         var card = document.querySelector('#app .n-card.vpscs-shortcuts');
         if (!card) {
@@ -610,14 +683,28 @@
           if (!card) return;
           card.classList.add('vpscs-shortcuts');
         }
+        var content = card.querySelector('.n-card__content') || card;
         ['一键订阅', '续费订阅'].forEach(function (label) {
-          var nodes = Array.prototype.slice.call(card.querySelectorAll('div'));
+          var nodes = Array.prototype.slice.call(content.querySelectorAll('div'));
           var hits = nodes.filter(function (node) {
             var text = node.textContent.replace(/\s+/g, '');
             return text.indexOf(label) === 0 && text.length < 40 && node.querySelector('div');
           });
           var row = hits.filter(function (node) { return hits.indexOf(node.parentElement) === -1; })[0];
-          if (row) row.style.setProperty('display', 'none', 'important');
+          if (!row) return;
+          // 一路向上找到内容区下的一级节点：外层卡片才是真正带点击事件和留白的那个壳。
+          var shell = row;
+          while (shell.parentElement && shell.parentElement !== content) shell = shell.parentElement;
+          shell.style.setProperty('display', 'none', 'important');
+          shell.style.setProperty('pointer-events', 'none', 'important');
+        });
+        // 清掉可能残留的空壳（无文字、无高度的行）
+        Array.prototype.forEach.call(content.children, function (child) {
+          if (child.style.display === 'none') return;
+          if (!child.textContent.replace(/\s+/g, '') && !child.querySelector('img,svg')) {
+            child.style.setProperty('display', 'none', 'important');
+            child.style.setProperty('pointer-events', 'none', 'important');
+          }
         });
       }
       // Some browsers finish restoring the cached Vue view without producing
