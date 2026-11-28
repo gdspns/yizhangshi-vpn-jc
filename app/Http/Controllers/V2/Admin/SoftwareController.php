@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\V2\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Carbon;
@@ -60,8 +61,33 @@ class SoftwareController extends Controller
     {
         $users = DB::table('software_online_users')->orderByDesc('last_seen')->limit(500)->get();
         $cutoff = now()->subSeconds(90);
-        $users->transform(function ($user) use ($cutoff) {
+
+        // 软件上报的 user_identifier 就是订阅链接末尾那串订阅码（v2_user.token）。
+        // 订阅码可能属于某个子账号，要再换算到主账号邮箱，管理员才知道是哪位用户。
+        $identifiers = $users->pluck('user_identifier')->filter()->unique()->values()->all();
+        $emailMap = [];
+        if ($identifiers) {
+            $matched = User::whereIn('token', $identifiers)
+                ->get(['id', 'owner_user_id', 'email', 'token']);
+            $ownerIds = $matched->pluck('owner_user_id')->filter()->unique()->values()->all();
+            $owners = $ownerIds
+                ? User::whereIn('id', $ownerIds)->pluck('email', 'id')->all()
+                : [];
+            foreach ($matched as $row) {
+                $email = $row->owner_user_id ? ($owners[$row->owner_user_id] ?? '') : $row->email;
+                if (!$email) {
+                    continue;
+                }
+                // 正常情况 token 唯一；万一重复，优先保留主账号自己的邮箱。
+                if (!isset($emailMap[$row->token]) || !$row->owner_user_id) {
+                    $emailMap[$row->token] = $email;
+                }
+            }
+        }
+
+        $users->transform(function ($user) use ($cutoff, $emailMap) {
             $user->online = (bool) $user->is_online && Carbon::parse($user->last_seen)->gte($cutoff);
+            $user->email = $emailMap[$user->user_identifier] ?? '';
             return $user;
         });
         return $this->success(['users' => $users]);

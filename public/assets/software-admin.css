@@ -9,3 +9,5 @@
 body:has([data-collapsed="true"]) #vpscs-software-page{left:3.5rem}
 body.vpscs-software-open{overflow:hidden}
 .vpscs-sw-row-head>div{display:flex;align-items:center;gap:10px}.vpscs-sw-row-head .vpscs-sw-btn{min-height:32px;padding:0 12px}
+.vpscs-sw-email{margin-top:6px;font-size:14px;font-weight:700;color:#4ade80;overflow-wrap:anywhere}
+.vpscs-sw-email:empty{display:none}

@@ -158,9 +158,61 @@ class UserController extends Controller
     }
 
     // Apply filters and sorts to the query builder.
-    private function applyFiltersAndSorts(Request $request, Builder|QueryBuilder $builder): void
+    /**
+     * 从搜索请求里提取订阅码并换算成主账号 id。
+     *
+     * 订阅码是 v2_user.token（订阅链接末尾那串 hex）；用户可能粘贴整条订阅
+     * 链接（.../s/<token> 或 ?token=<token>）也可能只粘那串码。不关心前端用
+     * 哪个参数名传搜索词，把请求里的字符串值都扫一遍。没扫到任何像订阅码的
+     * 内容时返回 null（走常规过滤），扫到了但没命中账号时返回空数组（查无结果）。
+     */
+    private function matchSubscriptionToken(Request $request): ?array
     {
-        $this->applyFilters($request, $builder);
+        $terms = [];
+        $walk = function ($value) use (&$walk, &$terms) {
+            if (is_array($value)) {
+                foreach ($value as $item) {
+                    $walk($item);
+                }
+            } elseif (is_string($value) && strlen($value) <= 500) {
+                $terms[] = trim($value);
+            }
+        };
+        $walk($request->all());
+
+        $tokens = [];
+        foreach ($terms as $term) {
+            if ($term === '' || mb_strlen($term) > 200) {
+                continue;
+            }
+            // 整条订阅链接：路径末段或 ?token= 参数（定界符用 ~，模式里含 #）
+            if (preg_match('~/([0-9a-fA-F]{16,64})/?(?:[?#].*)?$~', $term, $m)) {
+                $tokens[] = $m[1];
+            }
+            if (preg_match('/[?&]token=([0-9a-fA-F]{16,64})/i', $term, $m)) {
+                $tokens[] = $m[1];
+            }
+            // 就是那串码本身
+            if (preg_match('/^[0-9a-fA-F]{16,64}$/', $term)) {
+                $tokens[] = $term;
+            }
+        }
+        if (!$tokens) {
+            return null;
+        }
+
+        $ownerIds = [];
+        foreach (array_unique($tokens) as $token) {
+            $user = User::where('token', $token)->first(['id', 'owner_user_id']);
+            if ($user) {
+                $ownerIds[] = (int) ($user->owner_user_id ?: $user->id);
+            }
+        }
+        return array_values(array_unique($ownerIds));
+    }
+
+    private function applyFiltersAndSorts(Request $request, Builder|QueryBuilder $builder): void
+    {        $this->applyFilters($request, $builder);
         $this->applySorting($request, $builder);
     }
 
@@ -317,7 +369,16 @@ class UserController extends Controller
 
         $userModel = HookManager::filter('admin.user.fetch.query', $userModel, $request);
 
-        $this->applyFiltersAndSorts($request, $userModel);
+        // 搜索框里可以直接粘贴订阅链接末尾那串订阅码（或整条订阅链接），
+        // 直接定位到它所属的账号，不用先猜邮箱。订阅码可能属于子账号，
+        // 所以要换算成主账号 id；此时跳过常规字段过滤，避免 email like 把它排除掉。
+        $tokenOwnerIds = $this->matchSubscriptionToken($request);
+        if ($tokenOwnerIds !== null) {
+            $userModel->whereIn('id', $tokenOwnerIds ?: [0]);
+            $this->applySorting($request, $userModel);
+        } else {
+            $this->applyFiltersAndSorts($request, $userModel);
+        }
 
         $users = $userModel->orderBy('id', 'desc')
             ->paginate($pageSize, ['*'], 'page', $current);
