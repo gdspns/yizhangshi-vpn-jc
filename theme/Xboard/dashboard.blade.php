@@ -194,14 +194,40 @@
         script.src = '/theme/{{$theme}}/assets/umi.js?v={{$assetVer}}';
         document.head.appendChild(script);
       }
+      // 续费时要把 subscription_id 带进下单请求，否则后端会把续费判成新购/升级。
+      // 应用内部走的是 axios(XHR)，不经过 window.fetch，两条通道都要挂。
+      var RENEW_URL = /\/api\/v1\/user\/order\/save(?:\?|$)/;
+      function takeRenewId() {
+        var target = sessionStorage.getItem('vpscs_renew_subscription_id');
+        if (target) sessionStorage.removeItem('vpscs_renew_subscription_id');
+        return target;
+      }
+      function withRenewId(body) {
+        try {
+          var payload = JSON.parse(body);
+          payload.subscription_id = Number(takeRenewId());
+          return JSON.stringify(payload);
+        } catch (_) { return body; }
+      }
       var nativeFetch = window.fetch.bind(window);
       window.fetch = function (input, init) {
         var url = typeof input === 'string' ? input : input.url;
-        var target = sessionStorage.getItem('vpscs_renew_subscription_id');
-        if (target && /\/api\/v1\/user\/order\/save(?:\?|$)/.test(url) && init && typeof init.body === 'string') {
-          try { var payload = JSON.parse(init.body); payload.subscription_id = Number(target); init = Object.assign({}, init, { body: JSON.stringify(payload) }); sessionStorage.removeItem('vpscs_renew_subscription_id'); } catch (_) {}
+        if (RENEW_URL.test(url) && sessionStorage.getItem('vpscs_renew_subscription_id') && init && typeof init.body === 'string') {
+          init = Object.assign({}, init, { body: withRenewId(init.body) });
         }
         return nativeFetch(input, init);
+      };
+      var nativeOpen = XMLHttpRequest.prototype.open;
+      var nativeSend = XMLHttpRequest.prototype.send;
+      XMLHttpRequest.prototype.open = function (method, url) {
+        this.__vpscsUrl = String(url || '');
+        return nativeOpen.apply(this, arguments);
+      };
+      XMLHttpRequest.prototype.send = function (body) {
+        if (RENEW_URL.test(this.__vpscsUrl || '') && sessionStorage.getItem('vpscs_renew_subscription_id') && typeof body === 'string') {
+          body = withRenewId(body);
+        }
+        return nativeSend.call(this, body);
       };
 
       function inLanding() { return !location.hash || location.hash === '#' || location.hash === '#/'; }
@@ -353,6 +379,7 @@
         });
         enforcePlanGrid();
         renderSubscriptionList();
+        pruneShortcutRows();
       }).observe(document.getElementById('app'), { childList: true, subtree: true });
 
       function enforcePlanGrid() {
@@ -438,6 +465,7 @@
       addEventListener('hashchange', function () { setTimeout(syncPlanShelf, 0); });
 
       var subscriptionRenderBusy = false;
+      var subscriptionItems = [];
       function renderSubscriptionList() {
         if (!/dashboard/i.test(location.hash) || subscriptionRenderBusy || document.getElementById('vpscs-subscription-list')) return;
         var card = Array.from(document.querySelectorAll('#app .n-card')).find(function (node) { return node.textContent.includes('我的订阅'); });
@@ -457,10 +485,34 @@
           if (payload.code !== 0 && payload.code !== 200 && !Array.isArray(payload.data)) throw new Error(payload.message || '订阅加载失败');
           var items = payload.data || [];
           if (!Array.isArray(items) || !items.length) throw new Error(payload.message || '暂时没有有效订阅');
+          subscriptionItems = items;
           var list = document.createElement('div'); list.id = 'vpscs-subscription-list'; list.className = 'vpscs-subscription-list';
-          list.innerHTML = items.map(function (item) { var used = Number(item.u || 0) + Number(item.d || 0); var total = Number(item.transfer_enable || 0); var expires = item.expired_at ? new Date(Number(item.expired_at) * 1000).toLocaleDateString() : '长期有效'; return '<section class="vpscs-subscription-card"><div class="vpscs-subscription-head"><span class="vpscs-subscription-name">' + escapeHtml(item.name || '订阅') + '</span><span>到期：' + expires + '</span></div><p class="vpscs-subscription-meta">已用 ' + (used / 1073741824).toFixed(2) + ' GB / ' + (total / 1073741824).toFixed(2) + ' GB</p><div class="vpscs-subscription-url">' + escapeHtml(item.subscribe_url) + '</div><div class="vpscs-subscription-actions"><button data-renew="' + item.id + '">续费订阅</button><button data-copy="' + escapeHtml(item.subscribe_url) + '">复制订阅</button></div></section>'; }).join('');
+          list.innerHTML = items.map(function (item, index) {
+            var used = Number(item.u || 0) + Number(item.d || 0);
+            var total = Number(item.transfer_enable || 0);
+            var expires = item.expired_at ? new Date(Number(item.expired_at) * 1000).toLocaleDateString() : '长期有效';
+            return '<section class="vpscs-subscription-card">'
+              + '<div class="vpscs-subscription-head"><span class="vpscs-subscription-name">' + escapeHtml(item.name || '订阅') + '</span><span>到期：' + expires + '</span></div>'
+              + '<p class="vpscs-subscription-meta">已用 ' + (used / 1073741824).toFixed(2) + ' GB / ' + (total / 1073741824).toFixed(2) + ' GB</p>'
+              + '<div class="vpscs-subscription-url">' + escapeHtml(item.subscribe_url) + '</div>'
+              + '<div class="vpscs-subscription-actions"><button type="button" data-renew="' + index + '">续费订阅</button><button type="button" data-copy="' + index + '">复制订阅</button></div>'
+              + '</section>';
+          }).join('');
           content.replaceChildren(list);
-          list.addEventListener('click', function (event) { var renew = event.target.closest('[data-renew]'); var copy = event.target.closest('[data-copy]'); if (renew) { sessionStorage.setItem('vpscs_renew_subscription_id', renew.dataset.renew); location.hash = '#/plan'; } if (copy) navigator.clipboard.writeText(copy.dataset.copy); });
+          list.addEventListener('click', function (event) {
+            var renew = event.target.closest('[data-renew]');
+            var copy = event.target.closest('[data-copy]');
+            if (renew) {
+              var item = subscriptionItems[Number(renew.getAttribute('data-renew'))] || {};
+              sessionStorage.setItem('vpscs_renew_subscription_id', String(item.id || ''));
+              var planId = item.plan && item.plan.id ? item.plan.id : '';
+              location.hash = planId ? '#/plan/' + planId : '#/plan';
+            }
+            if (copy) {
+              var target = subscriptionItems[Number(copy.getAttribute('data-copy'))] || {};
+              openCopyDialog(target.subscribe_url || '', target.name || '我的订阅');
+            }
+          });
         }).catch(function (error) {
           var failed = document.createElement('div');
           failed.className = 'vpscs-subscription-loading is-error';
@@ -469,10 +521,98 @@
           content.replaceChildren(failed);
         }).finally(function () { subscriptionRenderBusy = false; });
       }
+
+      // 复制订阅：和「捷径 - 一键订阅」的弹窗一样，先弹窗再复制，移动端也能长按选中。
+      var copyDialog = null;
+      function closeCopyDialog() {
+        if (!copyDialog) return;
+        copyDialog.classList.remove('is-open');
+        document.body.classList.remove('vpscs-modal-open');
+      }
+      function copyText(text) {
+        if (navigator.clipboard && window.isSecureContext) {
+          return navigator.clipboard.writeText(text).then(function () { return true; }).catch(function () { return legacyCopy(text); });
+        }
+        return Promise.resolve(legacyCopy(text));
+      }
+      function legacyCopy(text) {
+        var area = document.createElement('textarea');
+        area.value = text;
+        area.setAttribute('readonly', '');
+        area.style.position = 'fixed';
+        area.style.top = '-1000px';
+        area.style.opacity = '0';
+        document.body.appendChild(area);
+        area.select();
+        var ok = false;
+        try { ok = document.execCommand('copy'); } catch (_) {}
+        document.body.removeChild(area);
+        return ok;
+      }
+      function openCopyDialog(url, title) {
+        if (!copyDialog) {
+          copyDialog = document.createElement('div');
+          copyDialog.className = 'vpscs-copy-modal';
+          copyDialog.innerHTML = '<div class="vpscs-copy-backdrop" data-close></div>'
+            + '<div class="vpscs-copy-panel" role="dialog" aria-modal="true" aria-label="复制订阅链接">'
+            + '<div class="vpscs-copy-head"><strong>复制订阅链接</strong><button type="button" class="vpscs-copy-close" data-close aria-label="关闭">×</button></div>'
+            + '<p class="vpscs-copy-sub"></p>'
+            + '<textarea class="vpscs-copy-field" readonly rows="3" spellcheck="false"></textarea>'
+            + '<p class="vpscs-copy-hint">复制后粘贴到 v2rayN / Clash Verge / Shadowrocket 等客户端的「从剪贴板导入」即可。</p>'
+            + '<div class="vpscs-copy-actions"><button type="button" class="vpscs-copy-btn vpscs-copy-confirm">复制链接</button><button type="button" class="vpscs-copy-btn is-ghost" data-close>关闭</button></div>'
+            + '</div>';
+          document.body.appendChild(copyDialog);
+          copyDialog.addEventListener('click', function (event) { if (event.target.closest('[data-close]')) closeCopyDialog(); });
+          copyDialog.querySelector('.vpscs-copy-confirm').addEventListener('click', function () {
+            var field = copyDialog.querySelector('.vpscs-copy-field');
+            var button = copyDialog.querySelector('.vpscs-copy-confirm');
+            copyText(field.value).then(function (ok) {
+              button.textContent = ok ? '已复制 ✓' : '请长按选中复制';
+              button.classList.toggle('is-ok', !!ok);
+              field.focus();
+              field.select();
+              setTimeout(function () { button.textContent = '复制链接'; button.classList.remove('is-ok'); }, 2000);
+            });
+          });
+          addEventListener('keydown', function (event) { if (event.key === 'Escape') closeCopyDialog(); });
+        }
+        copyDialog.querySelector('.vpscs-copy-sub').textContent = title;
+        copyDialog.querySelector('.vpscs-copy-field').value = url || '';
+        copyDialog.classList.add('is-open');
+        document.body.classList.add('vpscs-modal-open');
+        setTimeout(function () {
+          var field = copyDialog.querySelector('.vpscs-copy-field');
+          field.focus();
+          field.select();
+        }, 40);
+      }
+
+      // 「捷径」里的一键订阅/续费订阅已经并入订阅卡，隐藏这两行避免入口重复。
+      function pruneShortcutRows() {
+        var card = document.querySelector('#app .n-card.vpscs-shortcuts');
+        if (!card) {
+          var headers = document.querySelectorAll('#app .n-card__header, #app .n-card-header, #app .n-card__header-main, #app .n-card-header__main');
+          for (var i = 0; i < headers.length; i += 1) {
+            if (headers[i].textContent.replace(/\s+/g, '') === '捷径') { card = headers[i].closest('.n-card'); break; }
+          }
+          if (!card) return;
+          card.classList.add('vpscs-shortcuts');
+        }
+        ['一键订阅', '续费订阅'].forEach(function (label) {
+          var nodes = Array.prototype.slice.call(card.querySelectorAll('div'));
+          var hits = nodes.filter(function (node) {
+            var text = node.textContent.replace(/\s+/g, '');
+            return text.indexOf(label) === 0 && text.length < 40 && node.querySelector('div');
+          });
+          var row = hits.filter(function (node) { return hits.indexOf(node.parentElement) === -1; })[0];
+          if (row) row.style.setProperty('display', 'none', 'important');
+        });
+      }
       // Some browsers finish restoring the cached Vue view without producing
       // another child-list mutation.  A light poll makes the enhancement
       // deterministic after refresh and stops doing work once it is rendered.
       setInterval(renderSubscriptionList, 900);
+      setInterval(pruneShortcutRows, 900);
       setInterval(syncPlanShelf, 900);
     })();
   </script>
