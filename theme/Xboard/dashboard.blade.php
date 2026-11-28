@@ -194,25 +194,37 @@
         script.src = '/theme/{{$theme}}/assets/umi.js?v={{$assetVer}}';
         document.head.appendChild(script);
       }
-      // 续费时要把 subscription_id 带进下单请求，否则后端会把续费判成新购/升级。
-      // 应用内部走的是 axios(XHR)，不经过 window.fetch，两条通道都要挂。
+      // 续费时要把 subscription_id 带进下单请求，否则后端会把续费判成新购。
+      // 应用内部下单走 axios(XHR) + x-www-form-urlencoded，fetch 与 XHR 两条通道都要挂。
       var RENEW_URL = /\/api\/v1\/user\/order\/save(?:\?|$)/;
-      function takeRenewId() {
-        var target = sessionStorage.getItem('vpscs_renew_subscription_id');
-        if (target) sessionStorage.removeItem('vpscs_renew_subscription_id');
-        return target;
+      var RENEW_KEY = 'vpscs_renew_subscription_id';
+      function readRenew() {
+        try { return JSON.parse(sessionStorage.getItem(RENEW_KEY) || 'null'); } catch (_) { return null; }
       }
+      function clearRenew() { sessionStorage.removeItem(RENEW_KEY); }
       function withRenewId(body) {
-        try {
-          var payload = JSON.parse(body);
-          payload.subscription_id = Number(takeRenewId());
-          return JSON.stringify(payload);
-        } catch (_) { return body; }
+        var renew = readRenew();
+        if (!renew || !renew.id) return body;
+        // 只有仍然停在这张订阅对应的套餐详情页时才注入，避免误绑到别的套餐。
+        if (renew.plan && !new RegExp('^#/plan/' + renew.plan + '(?:[?/]|$)').test(location.hash)) {
+          clearRenew();
+          return body;
+        }
+        clearRenew();
+        var text = typeof body === 'string' ? body : '';
+        if (text.trim().charAt(0) === '{') {
+          try {
+            var payload = JSON.parse(text);
+            payload.subscription_id = Number(renew.id);
+            return JSON.stringify(payload);
+          } catch (_) {}
+        }
+        return (text ? text + '&' : '') + 'subscription_id=' + encodeURIComponent(String(renew.id));
       }
       var nativeFetch = window.fetch.bind(window);
       window.fetch = function (input, init) {
         var url = typeof input === 'string' ? input : input.url;
-        if (RENEW_URL.test(url) && sessionStorage.getItem('vpscs_renew_subscription_id') && init && typeof init.body === 'string') {
+        if (RENEW_URL.test(url) && readRenew() && init && typeof init.body === 'string') {
           init = Object.assign({}, init, { body: withRenewId(init.body) });
         }
         return nativeFetch(input, init);
@@ -224,7 +236,7 @@
         return nativeOpen.apply(this, arguments);
       };
       XMLHttpRequest.prototype.send = function (body) {
-        if (RENEW_URL.test(this.__vpscsUrl || '') && sessionStorage.getItem('vpscs_renew_subscription_id') && typeof body === 'string') {
+        if (RENEW_URL.test(this.__vpscsUrl || '') && readRenew() && typeof body === 'string') {
           body = withRenewId(body);
         }
         return nativeSend.call(this, body);
@@ -374,7 +386,7 @@
           if (label === '按流量') node.textContent = '一次性套餐';
           if (label === '购买订阅') {
             node.textContent = '购买新订阅';
-            node.closest('button,a')?.addEventListener('click', function () { sessionStorage.removeItem('vpscs_renew_subscription_id'); }, { once: true });
+            node.closest('button,a')?.addEventListener('click', function () { clearRenew(); }, { once: true });
           }
         });
         enforcePlanGrid();
@@ -504,8 +516,8 @@
             var copy = event.target.closest('[data-copy]');
             if (renew) {
               var item = subscriptionItems[Number(renew.getAttribute('data-renew'))] || {};
-              sessionStorage.setItem('vpscs_renew_subscription_id', String(item.id || ''));
               var planId = item.plan && item.plan.id ? item.plan.id : '';
+              sessionStorage.setItem(RENEW_KEY, JSON.stringify({ id: Number(item.id || 0), plan: planId ? Number(planId) : 0 }));
               location.hash = planId ? '#/plan/' + planId : '#/plan';
             }
             if (copy) {
