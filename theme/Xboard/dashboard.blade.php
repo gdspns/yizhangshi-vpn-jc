@@ -654,9 +654,22 @@
           return r.json();
         }).then(function (payload) {
           if (payload.code !== 0 && payload.code !== 200 && !Array.isArray(payload.data)) throw new Error(payload.message || '订阅加载失败');
-          var items = payload.data || [];
-          if (!Array.isArray(items) || !items.length) throw new Error(payload.message || '暂时没有有效订阅');
+          var nowSec = Math.floor(Date.now() / 1000);
+          // 过期订阅直接不展示：卡片随到期自动消失，不保留历史订阅。
+          var items = (Array.isArray(payload.data) ? payload.data : []).filter(function (item) {
+            var expiredAt = item.expired_at;
+            if (expiredAt === null || expiredAt === undefined || Number(expiredAt) === 0) return true;
+            return Number(expiredAt) > nowSec;
+          });
           subscriptionItems = items;
+          if (!items.length) {
+            var blank = document.createElement('div');
+            blank.className = 'vpscs-subscription-loading is-empty';
+            blank.innerHTML = '<span>当前没有有效订阅</span><button type="button">购买订阅</button>';
+            blank.querySelector('button').addEventListener('click', function () { clearRenew(); location.hash = '#/plan'; });
+            content.replaceChildren(blank);
+            return;
+          }
           var list = document.createElement('div'); list.id = 'vpscs-subscription-list'; list.className = 'vpscs-subscription-list';
           list.innerHTML = items.map(function (item, index) {
             var used = Number(item.u || 0) + Number(item.d || 0);
@@ -886,6 +899,22 @@
       setInterval(pruneShortcutRows, 900);
       setInterval(syncPlanShelf, 900);
       setInterval(enhancePlanPeriod, 900);
+      // 页面停留期间跨过到期时间也要立刻下架，不用等用户刷新。
+      setInterval(function () {
+        if (!subscriptionItems.length || !/dashboard/i.test(location.hash)) return;
+        var nowSec = Math.floor(Date.now() / 1000);
+        var expired = subscriptionItems.some(function (item) {
+          var expiredAt = Number(item.expired_at);
+          return expiredAt > 0 && expiredAt <= nowSec;
+        });
+        if (!expired) return;
+        subscriptionItems = [];
+        var host = document.querySelector('.vpscs-subscription-host');
+        if (!host) return;
+        host.dataset.vpscsSubscriptionManaged = '';
+        host.replaceChildren();
+        renderSubscriptionList();
+      }, 60000);
     })();
   </script>
 </body>

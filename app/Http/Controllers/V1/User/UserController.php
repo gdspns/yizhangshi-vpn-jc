@@ -171,6 +171,12 @@ class UserController extends Controller
             })
             ->orderBy('id')
             ->get()
+            // 过期订阅不再下发：到期即从「我的订阅」消失，不保留历史订阅。
+            ->filter(function (User $subscription) {
+                $expiredAt = (int) $subscription->expired_at;
+                return $expiredAt === 0 || $expiredAt > time();
+            })
+            ->values()
             ->map(function (User $subscription) {
                 return [
                     'id' => $subscription->id,

@@ -7,3 +7,4 @@
 .vpscs-software-collapsed{display:flex;align-items:center;justify-content:center;width:2.5rem;height:2.5rem;margin:4px auto;border-radius:.375rem;color:inherit}
 .vpscs-software-collapsed:hover{background:hsl(var(--accent));color:hsl(var(--accent-foreground))}
 body:has([data-collapsed="true"]) #vpscs-software-page{left:3.5rem}
+body.vpscs-software-open{overflow:hidden}

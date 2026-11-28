@@ -220,22 +220,73 @@
     installGroup(nav);
   }
 
-  function syncRoute() {
-    var active = /#\/software-management(?:\?|$)/.test(location.hash);
-    page.classList.toggle('is-active', active);
+  var softwareActive = false;
+  var pendingActivate = false;
+  var lastRoute = '';
+
+  function rememberRoute() {
+    var hash = location.hash || '';
+    if (!hash || /#\/software-management/.test(hash)) return;
+    lastRoute = hash;
+    try { sessionStorage.setItem('vpscs_last_admin_route', hash); } catch (_) {}
+  }
+
+  function updateActiveLink() {
     var group = softwareGroup();
     var link = group && group.querySelector('[data-vpscs-software-link]');
-    if (link) {
-      link.classList.toggle('bg-secondary', active);
-      link.classList.toggle('text-secondary-foreground', active);
-      link.classList.toggle('shadow-sm', active);
-      if (active) link.setAttribute('aria-current', 'page'); else link.removeAttribute('aria-current');
-      if (active && !groupOpen) { groupOpen = true; applyGroupState(group); }
-    }
-    if (active) { loadConfig(); loadTelemetry(); clearInterval(timer); timer = setInterval(function () { loadTelemetry(true); }, 5000); }
-    else { clearInterval(timer); timer = null; }
+    if (!link) return;
+    link.classList.toggle('bg-secondary', softwareActive);
+    link.classList.toggle('text-secondary-foreground', softwareActive);
+    link.classList.toggle('shadow-sm', softwareActive);
+    if (!softwareActive) { link.removeAttribute('aria-current'); return; }
+    link.setAttribute('aria-current', 'page');
+    if (!groupOpen) { groupOpen = true; applyGroupState(group); }
+    // SPA 会把当前路由对应的入口标成选中，这里让位给「软件管理」。
+    Array.prototype.slice.call(document.querySelectorAll('aside nav a[aria-current="page"]')).forEach(function (node) {
+      if (node === link) return;
+      node.removeAttribute('aria-current');
+      node.classList.remove('bg-secondary', 'text-secondary-foreground', 'shadow-sm');
+    });
   }
+
+  function setActive(flag) {
+    softwareActive = !!flag;
+    if (page) page.classList.toggle('is-active', softwareActive);
+    document.body.classList.toggle('vpscs-software-open', softwareActive);
+    updateActiveLink();
+    if (softwareActive) {
+      loadConfig();
+      loadTelemetry();
+      clearInterval(timer);
+      timer = setInterval(function () { loadTelemetry(true); }, 5000);
+    } else if (timer) {
+      clearInterval(timer);
+      timer = null;
+    }
+  }
+
+  // 后台路由是编译期写死的，并不存在 /software-management：直接改 hash 会落到 404 页，
+  // 整个左侧导航一起被替换掉。所以这里不改路由，改成覆盖在内容区的面板。
+  function openSoftware() {
+    if (/#\/software-management/.test(location.hash) || !navElement()) {
+      // 书签 / 刷新仍带着旧 hash：先回到上一个真实路由，让 SPA 重新渲染侧边栏。
+      pendingActivate = true;
+      location.hash = lastRoute || '#/user/manage';
+      return;
+    }
+    setActive(true);
+  }
+
+  function handleHashChange() {
+    installMenu();
+    if (/#\/software-management/.test(location.hash)) { openSoftware(); return; }
+    rememberRoute();
+    if (pendingActivate) { pendingActivate = false; setActive(true); return; }
+    setActive(false);
+  }
+
   function boot() {
+    try { lastRoute = sessionStorage.getItem('vpscs_last_admin_route') || ''; } catch (_) {}
     createPage();
     installMenu();
     var root = document.getElementById('root');
@@ -244,11 +295,19 @@
       new MutationObserver(function () {
         if (pending) return;
         pending = true;
-        requestAnimationFrame(function () { pending = false; installMenu(); });
+        requestAnimationFrame(function () { pending = false; installMenu(); if (softwareActive) updateActiveLink(); });
       }).observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-collapsed'] });
     }
-    addEventListener('hashchange', function () { installMenu(); syncRoute(); });
-    syncRoute();
+    document.addEventListener('click', function (event) {
+      var link = event.target.closest && event.target.closest('a[href="#/software-management"], [data-vpscs-software-link]');
+      if (!link) return;
+      event.preventDefault();
+      event.stopPropagation();
+      openSoftware();
+    }, true);
+    addEventListener('hashchange', handleHashChange);
+    rememberRoute();
+    if (/#\/software-management/.test(location.hash)) openSoftware();
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once: true }); else boot();
 })();
