@@ -1058,16 +1058,28 @@
 
     // ---- 弹窗 ----
     var modal = null;
-    var state = { amount: 0, tradeNo: '', payAmount: 0, method: null, timer: null, busy: false };
+    var state = { amount: 0, tradeNo: '', payAmount: 0, method: null, timer: null, busy: false, paid: false };
 
-    function destroy() {
-      if (state.timer) { clearInterval(state.timer); state.timer = null; }
-      // 关掉弹窗（或中途返回）时把还没付的充值订单取消掉，
-      // 否则它会一直挡着下一次充值（「有未完成的订单」）。
-      if (state.tradeNo && modal) {
-        api('order/cancel', { trade_no: state.tradeNo }).catch(function () {});
-      }
+    // 只关弹窗，不动订单、不清轮询——步骤切换（金额→支付方式→二维码）都靠它。
+    function closeModal() {
       if (modal) { modal.remove(); modal = null; }
+    }
+
+    // 用户主动关闭（×、遮罩、取消支付、返回）时调用：
+    // 先向后端确认一次支付宝侧的付款状态，确实还没付才取消订单。
+    // 之前这里无条件取消 + 清定时器，导致出二维码的同时订单就被撤掉、
+    // 用户付了款也永远等不到到账提示。
+    function destroy(cancelPending) {
+      if (state.timer) { clearInterval(state.timer); state.timer = null; }
+      var tradeNo = state.tradeNo;
+      state.tradeNo = '';
+      if (tradeNo && cancelPending !== false && !state.paid) {
+        api('recharge/status', { trade_no: tradeNo }).then(function (res) {
+          // status: 0 待支付 → 撤单；1/3 已付 → 入账由后端完成，不撤
+          if (Number(res.status) === 0) return api('order/cancel', { trade_no: tradeNo });
+        }).catch(function () {});
+      }
+      closeModal();
     }
 
     function showError(message) {
@@ -1090,7 +1102,7 @@
     }
 
     function buildModal() {
-      destroy();
+      closeModal();
       modal = document.createElement('div');
       modal.className = 'vpscs-rc-mask';
       modal.innerHTML =
@@ -1101,17 +1113,18 @@
         '</div>';
       document.body.appendChild(modal);
       modal.addEventListener('click', function (event) {
-        if (event.target === modal) destroy();
+        if (event.target === modal) destroy(true);
       });
-      modal.querySelector('[data-rc-close]').addEventListener('click', destroy);
+      modal.querySelector('[data-rc-close]').addEventListener('click', function () { destroy(true); });
       return modal.querySelector('[data-rc-body]');
     }
 
     function stepAmount() {
+      state.paid = false;
       var body = buildModal();
       body.innerHTML =
         '<div class="vpscs-rc-balance">充值到账户余额，支付完成后立即到账</div>' +
-        '<input class="vpscs-rc-amount" data-rc-amount type="number" min="1" max="100000" step="0.01" placeholder="输入充值金额（元）" />' +
+        '<input class="vpscs-rc-amount" data-rc-amount type="number" min="0.1" max="100000" step="0.01" placeholder="输入充值金额（元）" />' +
         '<div class="vpscs-rc-fixed">' +
         FIXED_AMOUNTS.map(function (value) {
           return '<button type="button" data-rc-fixed="' + value + '">¥' + value + '</button>';
@@ -1132,8 +1145,8 @@
       });
       body.querySelector('[data-rc-go]').addEventListener('click', function () {
         var value = Number(input.value);
-        if (!(value >= 1) || value > 100000) {
-          showError('请输入 1 ~ 100000 之间的金额');
+        if (!(value >= 0.1) || value > 100000) {
+          showError('请输入 0.1 ~ 100000 之间的金额');
           return;
         }
         showError('');
@@ -1173,8 +1186,7 @@
     function bindBack(body) {
       var back = body.querySelector('[data-rc-back]');
       if (back) back.addEventListener('click', function () {
-        if (state.tradeNo) api('order/cancel', { trade_no: state.tradeNo }).catch(function () {});
-        state.tradeNo = '';
+        destroy(true);
         stepAmount();
       });
     }
@@ -1233,7 +1245,7 @@
         (data.data ? '<a class="vpscs-rc-open-link" href="' + esc(data.data) + '" target="_blank" rel="noopener">在浏览器中打开支付链接</a>' : '') +
         '<div class="vpscs-rc-qr-tip" data-rc-wait>等待支付中…</div>' +
         '<button type="button" class="vpscs-rc-back" data-rc-cancel>取消支付</button>';
-      body.querySelector('[data-rc-cancel]').addEventListener('click', function () { destroy(); });
+      body.querySelector('[data-rc-cancel]').addEventListener('click', function () { destroy(true); });
       if (!data.qrcode) {
         var qr = body.querySelector('[data-rc-qr]');
         qr.textContent = '二维码生成失败，请用下方链接打开支付';
@@ -1255,7 +1267,7 @@
       body.querySelector('[data-rc-open]').addEventListener('click', function () {
         window.open(data.data, '_blank', 'noopener');
       });
-      body.querySelector('[data-rc-cancel]').addEventListener('click', function () { destroy(); });
+      body.querySelector('[data-rc-cancel]').addEventListener('click', function () { destroy(true); });
     }
 
     function stepDone() {
@@ -1278,18 +1290,38 @@
       var times = 0;
       state.timer = setInterval(function () {
         times += 1;
-        if (!modal || times > 240) { destroy(); return; }
+        if (!modal || times > 480) { destroy(true); return; }
         var wait = modal.querySelector('[data-rc-wait]');
-        api('order/check?trade_no=' + encodeURIComponent(state.tradeNo)).then(function (status) {
+        api('recharge/status', { trade_no: state.tradeNo }).then(function (res) {
           if (!modal) return;
-          if (Number(status) === 3 || Number(status) === 1) {
-            destroy();
+          var status = Number(res && res.status);
+          if (status === 1 || status === 3) {
+            // 已入账：标记已付，走关闭流程时不会再发撤单请求。
+            state.paid = true;
+            destroy(false);
             stepDone();
+          } else if (status === 2) {
+            destroy(false);
+            stepCancelled();
           } else if (wait) {
-            wait.textContent = '等待支付中…（已等待 ' + Math.round(times * 2.5) + ' 秒）';
+            wait.textContent = '等待支付中…（已等待 ' + Math.round(times * 2.5) + ' 秒，支付后自动到账）';
           }
         }).catch(function () {});
       }, 2500);
+    }
+
+    function stepCancelled() {
+      var body = buildModal();
+      body.innerHTML =
+        '<div class="vpscs-rc-done">' +
+        '<div class="vpscs-rc-icon" style="background:#3a2410;color:#fbbf24">!</div>' +
+        '<div class="vpscs-rc-done-title">订单已取消</div>' +
+        '<div class="vpscs-rc-done-sub">若您已完成付款，请重新发起充值，系统会自动确认并补入余额</div>' +
+        '</div>' +
+        '<button type="button" class="vpscs-rc-go" data-rc-go data-rc-text="重新充值" data-rc-retry>重新充值</button>' +
+        '<button type="button" class="vpscs-rc-back" data-rc-finish>关闭</button>';
+      body.querySelector('[data-rc-retry]').addEventListener('click', function () { state.paid = false; stepAmount(); });
+      body.querySelector('[data-rc-finish]').addEventListener('click', function () { closeModal(); });
     }
 
     // ---- 往「我的钱包」卡片塞充值按钮 ----

@@ -49,6 +49,7 @@ class UserRoute
             // 余额充值
             $router->post('/recharge/create', [RechargeController::class, 'create']);
             $router->post('/recharge/checkout', [RechargeController::class, 'checkout']);
+            $router->post('/recharge/status', [RechargeController::class, 'status']);
             // Plan
             $router->get('/plan/fetch', [PlanController::class, 'fetch']);
             // Invite

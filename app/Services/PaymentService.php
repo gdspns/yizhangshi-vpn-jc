@@ -81,6 +81,22 @@ class PaymentService
         return $this->payment->notify($params);
     }
 
+    /**
+     * 主动查询外部支付网关的订单状态（支付宝当面付 trade.query）。
+     * 站点收不到网关异步回调时（NAT/内网穿透部署），充值靠这个主动查单入账。
+     * 返回网关侧交易号（已支付），未支付或网关不支持主动查询时返回 null。
+     */
+    public function queryOrder($order): ?string
+    {
+        if (empty($this->config['enable'])) {
+            return null;
+        }
+        if (!method_exists($this->payment, 'queryOrder')) {
+            return null;
+        }
+        return $this->payment->queryOrder($order);
+    }
+
     public function pay($order)
     {
         // custom notify domain name

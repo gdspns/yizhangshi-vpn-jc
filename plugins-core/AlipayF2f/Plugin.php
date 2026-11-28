@@ -117,7 +117,7 @@ class Plugin extends AbstractPlugin implements PaymentInterface
         // 所有 notify 都会验签失败，订单会永远停在待支付、前端一直卡在二维码。
         // 这里改用商户私钥主动回查支付宝的订单状态，回查结果来自 api.alipay.com，
         // 属于可信来源，可以安全地作为支付依据。
-        $callbackNo = $this->queryPaidTrade($order);
+        $callbackNo = $this->queryOrder($order);
         if (!$callbackNo) {
             return false;
         }
@@ -130,8 +130,10 @@ class Plugin extends AbstractPlugin implements PaymentInterface
 
     /**
      * 主动查询支付宝订单状态，已支付则返回支付宝交易号。
+     * public：站点收不到支付宝异步回调（NAT/内网穿透部署）时，
+     * 充值接口靠它在前端轮询中主动查单入账。
      */
-    private function queryPaidTrade(Order $order): ?string
+    public function queryOrder(Order $order): ?string
     {
         try {
             $gateway = new AlipayF2F();
