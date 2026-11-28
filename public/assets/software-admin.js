@@ -97,7 +97,11 @@
     page.querySelector('[data-user-count]').textContent = users.length;
     var userPages = Math.max(1, Math.ceil(users.length / perPage)); userPage = Math.min(userPage, userPages);
     var userRows = users.slice((userPage - 1) * perPage, userPage * perPage).map(function (item) {
-      return '<div class="vpscs-sw-row"><div class="vpscs-sw-row-head"><strong>' + escapeHtml(item.user_remark || '未设置备注') + '</strong><div><span class="' + (item.online ? 'vpscs-sw-online' : 'vpscs-sw-offline') + '">' + (item.online ? '● 在线' : '● 离线') + '</span><button type="button" class="vpscs-sw-btn is-danger" data-delete-user="' + escapeHtml(item.id) + '" data-delete-user-name="' + escapeHtml(item.user_remark || item.user_identifier || '该用户') + '">删除</button></div></div><div class="vpscs-sw-email">用户邮箱：' + (item.email ? escapeHtml(item.email) : '未匹配到账号（订阅码可能已删除）') + '</div><div class="vpscs-sw-muted">订阅码：' + escapeHtml(item.user_identifier) + '</div><div class="vpscs-sw-muted">IP：' + escapeHtml(item.ip_address || '-') + ' · 版本：' + escapeHtml(item.app_version || '-') + '</div><div class="vpscs-sw-muted">最后活跃：' + escapeHtml(dateText(item.last_seen)) + '</div></div>';
+      // 客户端订阅被删后会直接上报邮箱当标识，这时不再展示「订阅码」行，避免邮箱串位。
+      var looksLikeEmail = /@/.test(item.user_identifier || '');
+      var emailText = item.email ? escapeHtml(item.email) : '未匹配到账号（订阅码可能已删除）';
+      var codeLine = (!looksLikeEmail && item.user_identifier) ? '<div class="vpscs-sw-muted">订阅码：' + escapeHtml(item.user_identifier) + '</div>' : '';
+      return '<div class="vpscs-sw-row"><div class="vpscs-sw-row-head"><strong>' + escapeHtml(item.user_remark || '未设置备注') + '</strong><div><span class="' + (item.online ? 'vpscs-sw-online' : 'vpscs-sw-offline') + '">' + (item.online ? '● 在线' : '● 离线') + '</span><button type="button" class="vpscs-sw-btn is-danger" data-delete-user="' + escapeHtml(item.id) + '" data-delete-user-name="' + escapeHtml(item.user_remark || item.user_identifier || '该用户') + '">删除</button></div></div><div class="vpscs-sw-email">用户邮箱：' + emailText + '</div>' + codeLine + '<div class="vpscs-sw-muted">IP：' + escapeHtml(item.ip_address || '-') + ' · 版本：' + escapeHtml(item.app_version || '-') + '</div><div class="vpscs-sw-muted">最后活跃：' + escapeHtml(dateText(item.last_seen)) + '</div></div>';
     }).join('') || '<div class="vpscs-sw-row vpscs-sw-muted">还没有软件用户记录</div>';
     page.querySelector('[data-users]').innerHTML = userRows;
     page.querySelector('[data-user-page]').textContent = userPage + ' / ' + userPages;

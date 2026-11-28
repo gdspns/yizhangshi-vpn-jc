@@ -204,12 +204,25 @@ class UserController extends Controller
     public function resetSecurity(Request $request)
     {
         $user = $request->user();
-        $user->uuid = Helper::guid(true);
-        $user->token = Helper::guid();
-        if (!$user->save()) {
+        // 未带 subscription_id 时保持旧行为：重置当前登录账号。
+        // 带了则只允许重置自己名下的订阅（主账号本人或自己的子订阅）。
+        $target = $user;
+        if ($request->input('subscription_id')) {
+            $target = User::where('id', (int) $request->input('subscription_id'))
+                ->where(function ($query) use ($user) {
+                    $query->where('id', $user->id)->orWhere('owner_user_id', $user->id);
+                })
+                ->first();
+            if (!$target) {
+                return $this->fail([400, '订阅不存在或无权重置']);
+            }
+        }
+        $target->uuid = Helper::guid(true);
+        $target->token = Helper::guid();
+        if (!$target->save()) {
             return $this->fail([400, __('Reset failed')]);
         }
-        return $this->success(Helper::getSubscribeUrl($user->token));
+        return $this->success(Helper::getSubscribeUrl($target->token));
     }
 
     public function update(UserUpdate $request)

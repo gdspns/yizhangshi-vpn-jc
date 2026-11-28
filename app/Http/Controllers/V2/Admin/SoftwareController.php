@@ -62,12 +62,14 @@ class SoftwareController extends Controller
         $users = DB::table('software_online_users')->orderByDesc('last_seen')->limit(500)->get();
         $cutoff = now()->subSeconds(90);
 
-        // 软件上报的 user_identifier 就是订阅链接末尾那串订阅码（v2_user.token）。
+        // 软件上报的 user_identifier 通常是订阅链接末尾那串订阅码（v2_user.token），
+        // 但订阅被删掉后客户端会退化为直接上报邮箱，所以两种都要认。
         // 订阅码可能属于某个子账号，要再换算到主账号邮箱，管理员才知道是哪位用户。
         $identifiers = $users->pluck('user_identifier')->filter()->unique()->values()->all();
         $emailMap = [];
         if ($identifiers) {
             $matched = User::whereIn('token', $identifiers)
+                ->orWhereIn('email', $identifiers)
                 ->get(['id', 'owner_user_id', 'email', 'token']);
             $ownerIds = $matched->pluck('owner_user_id')->filter()->unique()->values()->all();
             $owners = $ownerIds
@@ -79,8 +81,17 @@ class SoftwareController extends Controller
                     continue;
                 }
                 // 正常情况 token 唯一；万一重复，优先保留主账号自己的邮箱。
-                if (!isset($emailMap[$row->token]) || !$row->owner_user_id) {
-                    $emailMap[$row->token] = $email;
+                $mapKeys = [];
+                if ($row->token && in_array($row->token, $identifiers, true)) {
+                    $mapKeys[] = $row->token;
+                }
+                if (in_array($row->email, $identifiers, true)) {
+                    $mapKeys[] = $row->email;
+                }
+                foreach ($mapKeys as $mapKey) {
+                    if (!isset($emailMap[$mapKey]) || !$row->owner_user_id) {
+                        $emailMap[$mapKey] = $email;
+                    }
                 }
             }
         }

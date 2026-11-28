@@ -140,6 +140,38 @@
     .vpscs-shelf-group-title { font-size: 17px; }
   }
 
+  /* 用户个人中心：四张卡片从竖排全宽改为两栏网格，避免被撑得空旷难看 */
+  body.vpscs-profile-page section.cus-scroll-y {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px;
+    align-content: start;
+    align-items: stretch;
+    width: 100%;
+    max-width: 1060px;
+    margin: 0 auto;
+    padding: 20px 18px 46px;
+    box-sizing: border-box;
+  }
+  body.vpscs-profile-page section.cus-scroll-y > .n-card { margin-top: 0 !important; }
+  /* 钱包（1）与重置订阅（4）横跨两栏；修改密码（2）、通知（3）并排 */
+  body.vpscs-profile-page section.cus-scroll-y > .n-card:nth-child(1),
+  body.vpscs-profile-page section.cus-scroll-y > .n-card:nth-child(4) { grid-column: 1 / -1; }
+  body.vpscs-profile-page section.cus-scroll-y > .n-back-top-placeholder { grid-column: 1 / -1; height: 0; min-height: 0; }
+  /* 半宽卡片里的表单占满栏宽，不再留 500px 硬上限 */
+  body.vpscs-profile-page section.cus-scroll-y > .n-card:nth-child(2) .max-w-125,
+  body.vpscs-profile-page section.cus-scroll-y > .n-card:nth-child(3) .max-w-125 { max-width: none; }
+  /* 钱包卡片内容上下收紧凑一点 */
+  body.vpscs-profile-page section.cus-scroll-y > .n-card:nth-child(1) .n-card__content > div:first-child { margin: 4px 0 6px; }
+  @media (max-width: 900px) {
+    body.vpscs-profile-page section.cus-scroll-y { grid-template-columns: 1fr; }
+  }
+  /* 重置订阅的订阅选择框（深浅主题都适配） */
+  .vpscs-reset-pick { display: flex; align-items: center; gap: 10px; margin: 2px 0 14px; max-width: 560px; font-size: 13px; }
+  .vpscs-reset-pick > span { white-space: nowrap; color: rgba(128, 128, 128, .95); }
+  .vpscs-reset-pick select { flex: 1; min-width: 0; min-height: 36px; padding: 0 10px; border: 1px solid rgba(128, 128, 128, .45); border-radius: 8px; background: rgba(128, 128, 128, .08); color: inherit; font-size: 13px; outline: none; }
+  .vpscs-reset-note { margin-top: 10px; min-height: 18px; font-size: 13px; color: #34c37a; }
+
   /* 套餐详情：付款周期提到页面最顶部整行横向排列，勾选态用圆形对号表达 */
   .vpscs-period-top { margin: 18px 0 0 !important; }
   .vpscs-period-top .n-card__content { display: grid !important; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; padding: 14px 16px !important; }
@@ -968,6 +1000,8 @@
   <style>
     .vpscs-rc-btn { display:inline-flex; align-items:center; gap:6px; min-height:32px; padding:0 16px; border:0; border-radius:8px; background:#7c3aed; color:#fff; font-size:14px; font-weight:700; cursor:pointer; box-shadow:0 6px 16px rgba(124,92,237,.35); }
     .vpscs-rc-btn:hover { background:#6d28d9; }
+    /* 钱包卡片里放在余额下方的充值按钮 */
+    .vpscs-rc-wallet-btn { margin-top:14px; min-height:38px; padding:0 26px; }
     .vpscs-rc-mask { position:fixed; inset:0; z-index:9999; display:flex; align-items:center; justify-content:center; padding:20px; background:rgba(0,0,0,.55); backdrop-filter:blur(3px); }
     .vpscs-rc-modal { position:relative; width:min(420px,100%); max-height:86vh; overflow:auto; border-radius:16px; background:#1c1d24; color:#e8eaf2; border:1px solid #333542; box-shadow:0 30px 80px rgba(0,0,0,.5); font-family:Inter,system-ui,sans-serif; }
     .vpscs-rc-modal::-webkit-scrollbar { width:6px }
@@ -979,7 +1013,7 @@
     .vpscs-rc-balance { margin:2px 0 14px; font-size:13px; color:#9aa0b4; }
     .vpscs-rc-amount { width:100%; box-sizing:border-box; padding:13px 14px; border:1px solid #3d3f4e; border-radius:10px; background:#24252e; color:#fff; font-size:22px; font-weight:700; text-align:center; outline:none; }
     .vpscs-rc-amount:focus { border-color:#7c3aed; }
-    .vpscs-rc-fixed { display:flex; gap:10px; margin-top:14px; }
+    .vpscs-rc-fixed { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:14px; }
     .vpscs-rc-fixed button { flex:1; min-height:42px; border:1px solid #3d3f4e; border-radius:10px; background:#24252e; color:#d6d9e6; font-size:15px; font-weight:700; cursor:pointer; }
     .vpscs-rc-fixed button:hover { border-color:#7c3aed; color:#fff; }
     .vpscs-rc-fixed button.is-active { border-color:#7c3aed; background:#31224d; color:#fff; }
@@ -1324,7 +1358,7 @@
       body.querySelector('[data-rc-finish]').addEventListener('click', function () { closeModal(); });
     }
 
-    // ---- 往「我的钱包」卡片塞充值按钮 ----
+    // ---- 往「我的钱包」卡片塞充值按钮（放在余额下方，而不是卡片右上角） ----
     function injectButton() {
       if (!document.body) return;
       var cards = document.querySelectorAll('.n-card');
@@ -1333,12 +1367,14 @@
         var text = card.textContent || '';
         var isWallet = text.indexOf('我的钱包') !== -1 || text.indexOf('My Wallet') !== -1;
         var hasBalance = text.indexOf('账户余额') !== -1 || text.indexOf('Account Balance') !== -1 || text.indexOf('余额') !== -1;
-        if (!isWallet || !hasBalance || card.querySelector('[data-vpscs-recharge]')) continue;
-        var host = card.querySelector('.n-card-header__extra') || card.querySelector('.n-card-header');
-        if (!host) continue;
+        if (!isWallet || !hasBalance) continue;
+        // 头部旧的按钮位置清掉（老版本曾把按钮放在 header extra）
+        Array.prototype.forEach.call(card.querySelectorAll('.n-card-header [data-vpscs-recharge]'), function (stale) { stale.remove(); });
+        var host = card.querySelector('.n-card__content');
+        if (!host || host.querySelector('[data-vpscs-recharge]')) continue;
         var button = document.createElement('button');
         button.type = 'button';
-        button.className = 'vpscs-rc-btn';
+        button.className = 'vpscs-rc-btn vpscs-rc-wallet-btn';
         button.setAttribute('data-vpscs-recharge', '1');
         button.textContent = '充值';
         button.addEventListener('click', function (event) {
@@ -1352,6 +1388,133 @@
 
     setInterval(injectButton, 1200);
     injectButton();
+  })();
+
+  // —— 个人中心重排：进入 #/profile 时给 body 挂 class。
+  // Vue Router 4 的 hash 模式走 history.pushState，不会触发 hashchange，
+  // 所以 pushState / replaceState 拦一层，再加低频 interval 兜底。
+  (function () {
+    function syncProfileLayout() {
+      document.body.classList.toggle('vpscs-profile-page', /^#\/profile\b/.test(location.hash || ''));
+    }
+    addEventListener('hashchange', syncProfileLayout);
+    ['pushState', 'replaceState'].forEach(function (name) {
+      var original = history[name];
+      if (!original || original.__vpscsProfileSync) return;
+      var wrapped = function () {
+        var result = original.apply(this, arguments);
+        setTimeout(syncProfileLayout, 0);
+        return result;
+      };
+      wrapped.__vpscsProfileSync = true;
+      history[name] = wrapped;
+    });
+    setInterval(syncProfileLayout, 900);
+    syncProfileLayout();
+  })();
+
+  // —— 个人中心「重置订阅信息」增强：注入订阅选择框，重置时只重置选中的那一条 ——
+  (function () {
+    'use strict';
+    function token() {
+      var raw = '';
+      try {
+        for (var i = 0; i < localStorage.length; i += 1) {
+          var key = localStorage.key(i) || '';
+          if (key.toUpperCase() === 'VUE_NAIVE_ACCESS_TOKEN') { raw = localStorage.getItem(key) || ''; break; }
+        }
+      } catch (_) {}
+      if (!raw) raw = localStorage.getItem('access_token') || '';
+      try {
+        var saved = JSON.parse(raw);
+        if (saved && typeof saved === 'object') raw = typeof saved.value === 'string' ? saved.value : '';
+      } catch (_) {}
+      return typeof raw === 'string' ? raw : '';
+    }
+    function api(path) {
+      var headers = { 'Accept': 'application/json' };
+      var t = token();
+      if (t) headers.Authorization = t;
+      return fetch('/api/v1/user/' + path, { headers: headers, credentials: 'same-origin' }).then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (j) {
+          if (!r.ok || (j && j.status === 'fail')) throw new Error((j && j.message) || ('请求失败（HTTP ' + r.status + '）'));
+          return j ? (j.data !== undefined ? j.data : j) : null;
+        });
+      });
+    }
+    function onProfile() { return /^#\/profile\b/.test(location.hash || ''); }
+    function resetCard() {
+      var cards = document.querySelectorAll('.n-card');
+      for (var i = 0; i < cards.length; i += 1) {
+        if ((cards[i].textContent || '').indexOf('重置订阅信息') !== -1) return cards[i];
+      }
+      return null;
+    }
+    function noteNode(card) {
+      var note = card.querySelector('[data-vpscs-reset-note]');
+      if (!note) {
+        note = document.createElement('div');
+        note.className = 'vpscs-reset-note';
+        note.setAttribute('data-vpscs-reset-note', '1');
+        card.querySelector('.n-card__content').appendChild(note);
+      }
+      return note;
+    }
+    function optionLabel(s) {
+      var exp = s.expired_at && Number(s.expired_at) !== 0 ? new Date(Number(s.expired_at) * 1000).toLocaleDateString('zh-CN', { hour12: false }) : '长期有效';
+      return (s.seq ? '订阅' + s.seq + ' · ' : '') + (s.name || '未命名套餐') + '（' + exp + '）';
+    }
+    function refreshOptions(select) {
+      api('getSubscriptions').then(function (list) {
+        list = list || [];
+        select.innerHTML = list.length
+          ? list.map(function (s) { return '<option value="' + s.id + '">' + optionLabel(s) + '</option>'; }).join('')
+          : '<option value="">当前账号</option>';
+      }).catch(function () { select.innerHTML = '<option value="">当前账号</option>'; });
+    }
+    function paintSelect() {
+      if (!onProfile()) return;
+      var card = resetCard();
+      if (!card) return;
+      var select = card.querySelector('[data-vpscs-reset-value]');
+      if (!select) {
+        var content = card.querySelector('.n-card__content');
+        if (!content) return;
+        var holder = document.createElement('label');
+        holder.className = 'vpscs-reset-pick';
+        holder.setAttribute('data-vpscs-reset-select', '1');
+        holder.innerHTML = '<span>选择要重置的订阅</span><select data-vpscs-reset-value></select>';
+        content.insertBefore(holder, content.firstChild);
+        select = holder.querySelector('select');
+        refreshOptions(select);
+      }
+    }
+    setInterval(paintSelect, 1200);
+    paintSelect();
+
+    // 拦截 SPA 自己的重置按钮（React 走根节点委托，capture 阶段先掐掉）
+    document.addEventListener('click', function (event) {
+      var button = event.target.closest && event.target.closest('.n-button--error-type');
+      if (!button || !onProfile()) return;
+      var card = resetCard();
+      if (!card || !card.contains(button)) return;
+      if (!/^重置/.test((button.textContent || '').trim())) return;
+      event.preventDefault();
+      event.stopPropagation();
+      var select = card.querySelector('[data-vpscs-reset-value]');
+      var id = select ? select.value : '';
+      var name = select && select.selectedOptions && select.selectedOptions[0] ? select.selectedOptions[0].textContent : '当前账号';
+      if (!window.confirm('确定重置「' + name + '」的订阅信息吗？\n重置后该订阅的链接与 UUID 会立即更换，旧链接马上失效。')) return;
+      var note = noteNode(card);
+      note.textContent = '正在重置…';
+      api('resetSecurity' + (id ? '?subscription_id=' + encodeURIComponent(id) : '')).then(function () {
+        note.textContent = '✅ 已重置「' + name + '」的订阅链接，旧链接已失效';
+        window.setTimeout(function () { note.textContent = ''; }, 8000);
+      }).catch(function (error) {
+        note.textContent = '❌ ' + error.message;
+        window.setTimeout(function () { note.textContent = ''; }, 8000);
+      });
+    }, true);
   })();
   </script>
 </body>
