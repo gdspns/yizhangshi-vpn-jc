@@ -35,7 +35,9 @@
     return {
       notice_enabled: checked('notice_enabled'), notice: value('notice'), api_domain: value('api_domain'),
       popup_enabled: checked('popup_enabled'), popup_content: value('popup_content'), popup_version: value('popup_version'), popup_display_count: Number(value('popup_display_count')) || 1,
-      update_enabled: checked('update_enabled'), latest_version: value('latest_version'), windows_download_url: value('windows_download_url'), macos_download_url: value('macos_download_url'), update_notes: value('update_notes'), force_update: checked('force_update')
+      update_enabled: checked('update_enabled'), latest_version: value('latest_version'), windows_download_url: value('windows_download_url'), macos_download_url: value('macos_download_url'), update_notes: value('update_notes'), force_update: checked('force_update'),
+      // 应急节点界面已隐藏，但后端仍要求这两个字段；保存其他分区时保留数据库原值。
+      emergency_nodes_enabled: !!config.emergency_nodes_enabled, emergency_subscription_url: String(config.emergency_subscription_url || '')
     };
   }
   function fill(data) {
