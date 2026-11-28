@@ -221,7 +221,16 @@
       --ring: 221 83% 58%;
     }
   </style>
-  <link rel="stylesheet" href="/assets/software-admin.css?v=20261128.1">
+  @php
+    // 用资源指纹代替手写版本号，避免 Cloudflare 边缘节点继续提供旧文件。
+    $swSignature = '';
+    foreach (['software-admin.js', 'software-admin.css'] as $swFile) {
+        $swPath = public_path('assets/' . $swFile);
+        $swSignature .= @filemtime($swPath) . '|' . @filesize($swPath) . '|';
+    }
+    $swVersion = substr(md5($swSignature), 0, 10);
+  @endphp
+  <link rel="stylesheet" href="/assets/software-admin.css?v={{ $swVersion }}">
 </head>
 
 <body>
@@ -482,10 +491,10 @@
   <script>
     window.vpscsSoftwareAdmin = {
       apiBase: @json('/api/v2/' . $secure_path . '/software'),
-      version: '2026.11.28.1'
+      version: '{{ $swVersion }}'
     };
   </script>
-  <script defer src="/assets/software-admin.js?v=20261128.1"></script>
+  <script defer src="/assets/software-admin.js?v={{ $swVersion }}"></script>
 </body>
 
 </html>

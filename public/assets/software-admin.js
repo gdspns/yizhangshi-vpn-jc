@@ -82,7 +82,9 @@
   var ICON_GROUP = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M10 4v4"/><path d="M2 8h20"/></svg>';
   var ICON_ITEM = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>';
 
-  function navElement() { return document.getElementById('sidebar-menu'); }
+  // 侧边栏的 id="sidebar-menu" 只被用作 aria-controls，并未真正渲染到 DOM 上，
+  // 所以这里按结构定位：唯一的 aside > nav。
+  function navElement() { return document.querySelector('aside nav') || document.getElementById('sidebar-menu'); }
   function softwareGroup() { return document.querySelector('[data-vpscs-software-group]'); }
   function isCollapsed(nav) {
     var holder = nav.closest('[data-collapsed]');
