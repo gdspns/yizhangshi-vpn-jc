@@ -697,7 +697,9 @@
           }
           if (copy) {
             var target = items[Number(copy.getAttribute('data-copy'))] || {};
-            openCopyDialog(target.subscribe_url || '', target.name || '我的订阅');
+            var targetNo = Number(target.seq);
+            if (!isFinite(targetNo) || targetNo <= 0) targetNo = Number(copy.getAttribute('data-copy')) + 1;
+            openCopyDialog(target.subscribe_url || '', '订阅' + targetNo + ' · ' + (target.name || '我的订阅'));
           }
         });
       }

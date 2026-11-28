@@ -226,9 +226,10 @@ class UserController extends Controller
         $user['balance'] = $user['balance'] / 100;
         $user['commission_balance'] = $user['commission_balance'] / 100;
         $user['subscribe_url'] = Helper::getSubscribeUrl($user['token']);
-        $user['subscription_count'] = ($user['subscriptions_count'] ?? 0) + ($user['plan_id'] ? 1 : 0);
         $profiles = self::subscriptionProfiles($model);
-        unset($user['subscriptions']);
+        // 过期订阅已经不再返回，计数也按有效的算，列表和选择框才对得上。
+        $user['subscription_count'] = count($profiles);
+        unset($user['subscriptions'], $user['subscriptions_count']);
         $user['subscription_profiles'] = $profiles;
         return HookManager::filter('admin.user.transform', $user, $model);
     }
