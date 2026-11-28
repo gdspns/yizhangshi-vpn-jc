@@ -746,7 +746,7 @@
         });
 
         // 放在页面标题下面，找不到标题就放在表格上方。
-        var heading = Array.prototype.slice.call(document.querySelectorAll('#root h1, #root h2, #root h3'))
+        var heading = Array.prototype.slice.call(document.querySelectorAll('#root h1, #root h2, #root h3, #root [class*="text-xl"], #root [class*="text-2xl"]'))
           .find(function (node) { return node.textContent.trim() === '工单管理' && !node.closest('aside,nav'); });
         var block = heading;
         if (heading && heading.parentElement && heading.parentElement.textContent.replace(/\s+/g, '').length <= 160) {
