@@ -62,7 +62,7 @@ class MailConfig
         Config::set('mail.mailers.smtp.port', $port);
         Config::set('mail.mailers.smtp.username', $username !== '' ? $username : null);
         Config::set('mail.mailers.smtp.password', $password !== '' ? $password : null);
-        Config::set('mail.mailers.smtp.timeout', 20);
+        Config::set('mail.mailers.smtp.timeout', 8);
         Config::set('mail.mailers.smtp.local_domain', (string) parse_url((string) config('app.url'), PHP_URL_HOST));
 
         Config::set('mail.from.address', $from !== '' ? $from : ($username !== '' ? $username : config('mail.from.address')));
