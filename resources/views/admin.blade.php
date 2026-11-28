@@ -175,6 +175,51 @@
       background: #25334a !important;
       border-color: #3a4c68 !important;
     }
+
+    /* The bundled admin hard-codes Tailwind's light shades for price chips and
+     * status pills (bg-slate-100/80, bg-blue-100 ...).  Those classes have no
+     * dark: variant, so they stay glaring white on a dark page.  Re-tone the
+     * ones actually used by the plan/user tables. */
+    html.dark #root [class~="bg-slate-100/80"],
+    html.dark #root [class~="bg-slate-100"],
+    html.dark #root .bg-gray-100,
+    html.dark #root .bg-gray-50,
+    html.dark #root .bg-white {
+      background-color: rgba(148, 163, 184, .14) !important;
+      color: #d7e1f0 !important;
+      border-color: rgba(148, 163, 184, .24) !important;
+    }
+    html.dark #root [class~="bg-slate-100/80"]:hover,
+    html.dark #root [class~="bg-slate-100"]:hover,
+    html.dark #root .bg-gray-100:hover {
+      background-color: rgba(148, 163, 184, .22) !important;
+    }
+    html.dark #root .text-slate-700, html.dark #root .text-slate-800,
+    html.dark #root .text-gray-700, html.dark #root .text-gray-800 {
+      color: #cbd5e1 !important;
+    }
+    html.dark #root .bg-blue-100,
+    html.dark #root .bg-indigo-100 { background-color: rgba(99, 102, 241, .18) !important; border-color: rgba(99, 102, 241, .32) !important; }
+    html.dark #root .text-blue-800, html.dark #root .text-indigo-800 { color: #c7d2fe !important; }
+    html.dark #root .bg-green-100,
+    html.dark #root .bg-emerald-100 { background-color: rgba(16, 185, 129, .18) !important; border-color: rgba(16, 185, 129, .32) !important; }
+    html.dark #root .text-green-800, html.dark #root .text-emerald-800 { color: #a7f3d0 !important; }
+    html.dark #root .bg-red-100 { background-color: rgba(239, 68, 68, .18) !important; border-color: rgba(239, 68, 68, .32) !important; }
+    html.dark #root .text-red-800 { color: #fecaca !important; }
+    html.dark #root .bg-yellow-100,
+    html.dark #root .bg-orange-100 { background-color: rgba(245, 158, 11, .18) !important; border-color: rgba(245, 158, 11, .32) !important; }
+    html.dark #root .text-yellow-800, html.dark #root .text-orange-800 { color: #fde68a !important; }
+    html.dark #root .bg-purple-100 { background-color: rgba(168, 85, 247, .18) !important; border-color: rgba(168, 85, 247, .32) !important; }
+    html.dark #root .text-purple-800 { color: #e9d5ff !important; }
+
+    /* The upstream dark palette maps primary to near-white, which makes
+     * switches and primary buttons look like pure white blocks.  Use the
+     * brand indigo instead so controls read as controls, not highlights. */
+    html.dark {
+      --primary: 221 83% 58%;
+      --primary-foreground: 210 40% 98%;
+      --ring: 221 83% 58%;
+    }
   </style>
   <link rel="stylesheet" href="/assets/software-admin.css?v=20261127.3">
 </head>
@@ -279,7 +324,7 @@
         return nativeFetch(input, init).then(function (response) {
           if (/user\/getUserInfoById/i.test(url)) response.clone().json().then(function (payload) {
             profiles = payload.data && payload.data.subscription_profiles || [];
-            renderSubscriptionPicker();
+            refreshAdminEnhancements();
           }).catch(function () {});
           return response;
         });
@@ -304,7 +349,7 @@
           try {
             var payload = JSON.parse(this.responseText);
             adminUsers = Array.isArray(payload.data) ? payload.data : (payload.data && payload.data.data || []);
-            renderSubscriptionPicker();
+            refreshAdminEnhancements();
           } catch (_) {}
         });
         return nativeOpen.apply(this, [method, nextUrl].concat(Array.prototype.slice.call(arguments, 2)));
@@ -322,6 +367,9 @@
         }
         return nativeSend.call(this, body);
       };
+      function subscriptionSignature(items) {
+        return (items || []).map(function (item) { return item.id + ':' + item.expired_at + ':' + item.transfer_enable; }).join(',');
+      }
       function renderSubscriptionPicker() {
         var dialog = Array.from(document.querySelectorAll('[role="dialog"]')).find(function (item) { return /用户|订阅/.test(item.textContent); });
         if (!dialog) return;
@@ -330,13 +378,64 @@
         if (activeUser && Array.isArray(activeUser.subscription_profiles)) profiles = activeUser.subscription_profiles;
         if (!profiles.length) return;
         var box = dialog.querySelector('.vpscs-admin-subscriptions');
+        // Rebuilding on every mutation used to reset the selection (and could
+        // loop forever because innerHTML itself is a mutation).  Rebuild only
+        // when the subscription set actually changes.
+        var signature = subscriptionSignature(profiles);
+        if (box && box.dataset.signature === signature) return;
         if (!box) { box = document.createElement('section'); box.className = 'vpscs-admin-subscriptions'; var body = dialog.querySelector('.el-dialog__body') || dialog; body.prepend(box); }
+        box.dataset.signature = signature;
         box.innerHTML = '<strong>订阅（共 ' + profiles.length + ' 条链接）</strong><select>' + profiles.map(function (item, index) { return '<option value="' + index + '">' + (item.name || '订阅 ' + (index + 1)) + '</option>'; }).join('') + '</select><div class="vpscs-admin-subscription-detail"></div>';
         var select = box.querySelector('select');
         function show() { var item = profiles[Number(select.value)] || {}; sessionStorage.setItem('vpscs_admin_subscription_id', item.id || ''); var used = (Number(item.u || 0) + Number(item.d || 0)) / 1073741824; var total = Number(item.transfer_enable || 0) / 1073741824; box.querySelector('.vpscs-admin-subscription-detail').innerHTML = '<div>当前操作目标：' + (item.name || '订阅') + '（ID ' + item.id + '）</div><div>套餐：' + (item.plan && item.plan.name || '-') + '</div><div>流量：' + used.toFixed(2) + ' / ' + total.toFixed(2) + ' GB</div><div>到期：' + (item.expired_at ? new Date(Number(item.expired_at) * 1000).toLocaleDateString() : '长期有效') + '</div><input readonly value="' + (item.subscribe_url || '') + '">'; }
         select.addEventListener('change', show); show();
       }
-      new MutationObserver(renderSubscriptionPicker).observe(document.body, { childList: true, subtree: true });
+
+      // Users who bought several plans get independent subscription rows.
+      // The list itself only prints the primary plan, so add a compact picker
+      // to that cell; the selected id is what the mutation hooks below target.
+      function renderRowSubscriptionPickers() {
+        if (!adminUsers.length) return;
+        var table = document.querySelector('#root table');
+        if (!table) return;
+        var index = -1;
+        Array.prototype.slice.call(table.querySelectorAll('thead th')).forEach(function (th, i) {
+          if (index === -1 && th.textContent.replace(/\s+/g, '').indexOf('订阅') !== -1) index = i;
+        });
+        if (index === -1) return;
+        Array.prototype.slice.call(table.querySelectorAll('tbody tr')).forEach(function (row) {
+          var cell = row.children[index];
+          if (!cell || cell.querySelector('.vpscs-row-sub')) return;
+          var emailMatch = (row.textContent || '').match(/[\w.+-]+@[\w.-]+/);
+          if (!emailMatch) return;
+          var user = adminUsers.find(function (item) { return item.email === emailMatch[0]; });
+          var items = user && Array.isArray(user.subscription_profiles) ? user.subscription_profiles : [];
+          if (items.length < 2) return;
+          var wrap = document.createElement('div');
+          wrap.className = 'vpscs-row-sub';
+          var select = document.createElement('select');
+          select.title = '选择要管理的订阅';
+          items.forEach(function (item, i) {
+            var option = document.createElement('option');
+            option.value = String(item.id || '');
+            option.textContent = (item.name || ('订阅 ' + (i + 1))) + ' · ' + (item.expired_at ? new Date(Number(item.expired_at) * 1000).toLocaleDateString() : '长期');
+            select.appendChild(option);
+          });
+          select.value = String((items[0] || {}).id || '');
+          select.addEventListener('change', function () {
+            sessionStorage.setItem('vpscs_admin_subscription_id', select.value);
+            select.classList.add('is-picked');
+          });
+          wrap.appendChild(select);
+          cell.appendChild(wrap);
+        });
+      }
+
+      function refreshAdminEnhancements() {
+        renderSubscriptionPicker();
+        renderRowSubscriptionPickers();
+      }
+      new MutationObserver(refreshAdminEnhancements).observe(document.body, { childList: true, subtree: true });
       document.addEventListener('click', function (event) {
         var action = event.target.closest('button,a,[role="menuitem"]');
         if (!action || !/复制订阅URL/.test(action.textContent)) return;
@@ -356,6 +455,9 @@
     .vpscs-admin-subscriptions { margin:0 0 18px; padding:14px; display:grid; gap:10px; border:1px solid var(--el-border-color); border-radius:9px; }
     .vpscs-admin-subscriptions select, .vpscs-admin-subscriptions input { min-height:38px; padding:0 10px; color:var(--el-text-color-primary); background:var(--el-bg-color); border:1px solid var(--el-border-color); border-radius:7px; }
     .vpscs-admin-subscription-detail { display:grid; gap:6px; }
+    .vpscs-row-sub { margin-top:6px; }
+    .vpscs-row-sub select { max-width:190px; min-height:26px; padding:0 6px; font-size:12px; color:var(--el-text-color-primary, #dbe4f2); background:var(--el-bg-color, #101a2b); border:1px solid var(--el-border-color, #2b3a52); border-radius:6px; }
+    .vpscs-row-sub select.is-picked { border-color:#7c5cff; box-shadow:0 0 0 2px rgba(124,92,255,.18); }
     html.dark #root .bg-white, html.dark #root [class~="bg-white"],
     html.dark #root .bg-gray-50, html.dark #root [class~="bg-gray-50"],
     html.dark #root .bg-green-50, html.dark #root [class~="bg-green-50"] {

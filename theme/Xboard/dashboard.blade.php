@@ -106,7 +106,13 @@
   .vl-plan-filter { width: max-content; max-width: 100%; margin: 0 auto 32px; padding: 6px; display: flex; gap: 6px; border: 1px solid #3a2b35; border-radius: 999px; background: #1b1118; }
   .vl-filter-btn { min-height: 42px; padding: 0 22px; border: 0; border-radius: 999px; color: #d7cbd3; background: transparent; cursor: pointer; font-size: 16px; }
   .vl-filter-btn.is-active { color: #fff; background: #e64e91; box-shadow: 0 8px 24px rgba(230,78,145,.3); }
-  body.vpscs-shelf-mode #app .card-container { display: none !important; }
+  /* The native shelf is replaced by the shared theme shelf.  Keep several
+   * selectors here: the app occasionally re-renders the grid and some builds
+   * add a wrapper that would otherwise restore the original grid. */
+  body.vpscs-shelf-mode .card-container,
+  body.vpscs-shelf-mode .card-container > .card-item,
+  html body.vpscs-shelf-mode .card-container,
+  body.vpscs-shelf-mode [data-vpscs-native-grid] { display: none !important; }
   .vpscs-plan-shelf { margin-top: 4px; }
   .vpscs-plan-shelf .vl-plan { cursor: pointer; transition: transform .2s, border-color .2s; }
   .vpscs-plan-shelf .vl-plan:hover { transform: translateY(-2px); }
@@ -275,23 +281,34 @@
         var parsed = null;
         try { parsed = JSON.parse(raw); } catch (_) {}
         if (Array.isArray(parsed)) {
-          return parsed.slice(0, 4).map(function (item) {
+          return parsed.slice(0, 6).map(function (item) {
             var ok = item && item.support !== false;
             return '<li class="' + (ok ? '' : 'is-off') + '">' + (ok ? '✓ ' : '✗ ') + escapeHtml((item && item.feature) || '') + '</li>';
           }).join('');
         }
         var text = raw.replace(/<br\s*\/?>/gi, '\n').replace(/<\/(p|div|li|h[1-6])>/gi, '\n').replace(/<[^>]+>/g, '');
-        return text.split(/\r?\n/).map(function (line) { return line.trim(); }).filter(Boolean).slice(0, 4)
+        return text.split(/\r?\n/).map(function (line) { return line.trim(); }).filter(Boolean).slice(0, 6)
           .map(function (line) { return '<li>✓ ' + escapeHtml(line) + '</li>'; }).join('');
       }
 
       function planCardHtml(plan, action) {
-        var one = plan.onetime_price != null && Number(plan.onetime_price) > 0;
-        var selected = one ? ['onetime_price', '一次性'] : periods.find(function (p) { return plan[p[0]] != null && Number(plan[p[0]]) > 0; });
+        var hasPeriodic = periods.some(function (p) { return Number(plan[p[0]] || 0) > 0; });
+        var one = !hasPeriodic && Number(plan.onetime_price || 0) > 0;
+        var selected = one ? ['onetime_price', '一次性'] : periods.find(function (p) { return Number(plan[p[0]] || 0) > 0; });
         if (!selected) selected = ['onetime_price', '一次性'];
         var price = Number(plan[selected[0]] || 0) / 100;
         var suffix = one ? '' : ' / ' + selected[1];
-        var extra = one ? '一次购买，长期有效' : periods.filter(function (p) { return plan[p[0]] != null && Number(plan[p[0]]) > 0 && p[0] !== selected[0]; }).slice(0, 3).map(function (p) { return p[1] + '付 ¥' + (Number(plan[p[0]]) / 100).toFixed(2); }).join(' · ');
+        var notes = [];
+        if (!one) {
+          periods.forEach(function (p) {
+            if (p[0] !== selected[0] && Number(plan[p[0]] || 0) > 0) {
+              notes.push(p[1] + '付 ¥' + (Number(plan[p[0]]) / 100).toFixed(2));
+            }
+          });
+        }
+        // 后台「流量包/重置包」价格也要出现在卡片上，价格才和套餐管理一致。
+        if (Number(plan.reset_price || 0) > 0) notes.push('流量包 ¥' + (Number(plan.reset_price) / 100).toFixed(2));
+        var extra = notes.slice(0, 3).join(' · ') || (one ? '一次购买，长期有效' : '');
         return '<li class="vl-plan" data-plan-id="' + escapeHtml(String(plan.id || '')) + '">'
           + '<span class="vl-kind">' + (one ? '一次性套餐' : '周期套餐') + '</span>'
           + '<h3>' + escapeHtml(plan.name || '') + '</h3>'
@@ -418,7 +435,7 @@
       function planShelfMode() { return /^#\/plan\/?$/.test(location.hash); }
 
       function shelfFilterMode() {
-        var items = Array.prototype.slice.call(document.querySelectorAll('#app .n-base-segmented-item'));
+        var items = Array.prototype.slice.call(document.querySelectorAll('.n-base-segmented-item'));
         var index = -1;
         items.forEach(function (item, i) {
           if (item.classList.contains('n-base-segmented-item--active') || item.getAttribute('aria-checked') === 'true') index = i;
@@ -426,41 +443,83 @@
         return index === 1 ? 'period' : (index === 2 ? 'onetime' : 'all');
       }
 
+      // The app re-renders its own grid on every filter/sort change, so the
+      // native shelf is hidden with an inline !important style: relying on a
+      // single class rule was not enough after a client-side route change.
+      function hideNativePlanGrid() {
+        // Vue may teleport the plan page outside #app, so do not scope this to
+        // one root: every native plan grid on the page is ours to replace.
+        Array.prototype.slice.call(document.querySelectorAll('.card-container')).forEach(function (grid) {
+          grid.setAttribute('data-vpscs-native-grid', '1');
+          grid.style.setProperty('display', 'none', 'important');
+        });
+      }
+
+      function restoreNativePlanGrid() {
+        Array.prototype.slice.call(document.querySelectorAll('[data-vpscs-native-grid]')).forEach(function (grid) {
+          grid.style.removeProperty('display');
+          grid.removeAttribute('data-vpscs-native-grid');
+        });
+      }
+
+      var shelfPaintedKey = '';
       function paintPlanShelf() {
         var shelf = document.getElementById('vpscs-plan-shelf');
         if (!shelf || !shelfPlans) return;
-        var plans = filterPlans(shelfPlans, shelfFilterMode());
+        var mode = shelfFilterMode();
+        var plans = filterPlans(shelfPlans, mode);
+        var key = mode + '|' + JSON.stringify(plans);
+        if (key === shelfPaintedKey) return;
+        shelfPaintedKey = key;
         if (!plans.length) { shelf.innerHTML = '<li class="vl-empty">该分类暂无在售套餐</li>'; return; }
         shelf.innerHTML = plans.map(function (plan) {
           return planCardHtml(plan, '<button type="button" class="vl-btn" data-buy="' + escapeHtml(String(plan.id || '')) + '">立即订阅</button>');
         }).join('');
       }
 
-      function mountPlanShelf() {
-        if (!planShelfMode() || document.getElementById('vpscs-plan-shelf')) return;
-        var grid = document.querySelector('#app .card-container');
-        if (!grid) return;
-        var shelf = document.createElement('ul');
-        shelf.id = 'vpscs-plan-shelf';
-        shelf.className = 'vl-plans vpscs-plan-shelf';
-        grid.parentNode.insertBefore(shelf, grid.nextSibling);
-        document.body.classList.add('vpscs-shelf-mode');
-        if (shelfPlans) { paintPlanShelf(); return; }
+      function fetchShelfPlans(shelf) {
         if (shelfLoading) return;
         shelfLoading = true;
         shelf.innerHTML = '<li class="vl-empty">正在加载套餐…</li>';
-        nativeFetch('/api/v1/user/plan/fetch', { headers: authHeaders(), credentials: 'same-origin' })
+        nativeFetch('/api/v1/user/plan/fetch', { headers: authHeaders(), credentials: 'same-origin', cache: 'no-store' })
           .then(function (r) { if (!r.ok) throw new Error(r.status === 403 ? '登录已过期，请重新登录' : '套餐加载失败（' + r.status + '）'); return r.json(); })
-          .then(function (payload) { shelfPlans = payload.data || []; paintPlanShelf(); })
+          .then(function (payload) { shelfPlans = payload.data || []; shelfPaintedKey = ''; paintPlanShelf(); })
           .catch(function (error) { shelf.innerHTML = '<li class="vl-empty">' + escapeHtml(error.message || '套餐加载失败') + '</li>'; })
           .finally(function () { shelfLoading = false; });
+      }
+
+      function mountPlanShelf() {
+        if (!planShelfMode()) return;
+        var shelf = document.getElementById('vpscs-plan-shelf');
+        if (!shelf) {
+          var grids = Array.prototype.slice.call(document.querySelectorAll('.card-container'));
+          var grid = grids.filter(function (item) { return item.getClientRects().length > 0; })[0] || grids[0];
+          if (!grid) return;
+          shelf = document.createElement('ul');
+          shelf.id = 'vpscs-plan-shelf';
+          shelf.className = 'vl-plans vpscs-plan-shelf';
+          grid.parentNode.insertBefore(shelf, grid.nextSibling);
+        }
+        // Keep both guards: the class for CSS, the inline style for safety.
+        document.body.classList.add('vpscs-shelf-mode');
+        hideNativePlanGrid();
+        if (shelfPlans) { paintPlanShelf(); return; }
+        fetchShelfPlans(shelf);
       }
 
       function syncPlanShelf() {
         if (!planShelfMode()) {
           var shelf = document.getElementById('vpscs-plan-shelf');
-          if (shelf) shelf.remove();
+          if (shelf) {
+            shelf.remove();
+            // Force a re-fetch next time: an administrator may have edited a
+            // product in the meantime, and the card must follow that change.
+            shelfPlans = null;
+            shelfPaintedKey = '';
+            shelfLoading = false;
+          }
           document.body.classList.remove('vpscs-shelf-mode');
+          restoreNativePlanGrid();
           return;
         }
         mountPlanShelf();
@@ -472,9 +531,23 @@
         var card = event.target.closest('#vpscs-plan-shelf .vl-plan');
         if (buy) { event.preventDefault(); location.hash = '#/plan/' + buy.getAttribute('data-buy'); return; }
         if (card) { location.hash = '#/plan/' + (card.getAttribute('data-plan-id') || ''); return; }
-        if (event.target.closest('#app .n-base-segmented-item')) setTimeout(paintPlanShelf, 0);
+        if (event.target.closest('.n-base-segmented-item')) setTimeout(paintPlanShelf, 0);
       }, true);
       addEventListener('hashchange', function () { setTimeout(syncPlanShelf, 0); });
+      // Vue re-creates the native grid when the segmented filter changes; hide
+      // it immediately instead of waiting for the 900ms safety tick.
+      (function () {
+        if (!window.MutationObserver) return;
+        var queued = false;
+        new MutationObserver(function () {
+          if (queued) return;
+          queued = true;
+          setTimeout(function () {
+            queued = false;
+            if (planShelfMode() && document.getElementById('vpscs-plan-shelf')) hideNativePlanGrid();
+          }, 0);
+        }).observe(document.body, { childList: true, subtree: true });
+      })();
 
       var subscriptionRenderBusy = false;
       var subscriptionItems = [];
