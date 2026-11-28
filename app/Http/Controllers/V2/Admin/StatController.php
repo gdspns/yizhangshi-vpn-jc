@@ -28,9 +28,12 @@ class StatController extends Controller
             return !!$server->is_online;
         })->count();
         // 获取在线设备数和在线用户数
+        // 订阅记录（owner_user_id 不为空）是挂在账号下面的链接，不算「用户」。
         $onlineDevices = User::where('t', '>=', time() - 600)
+            ->whereNull('owner_user_id')
             ->sum('online_count');
         $onlineUsers = User::where('t', '>=', time() - 600)
+            ->whereNull('owner_user_id')
             ->count();
 
         // 获取今日流量统计
@@ -326,19 +329,21 @@ class StatController extends Controller
             ->where('created_at', '<', time())
             ->sum('get_amount');
 
-        // Current month new users
+        // Current month new users（只算账号，订阅记录不计入）
         $currentMonthNewUsers = User::where('created_at', '>=', $currentMonthStart)
             ->where('created_at', '<', time())
+            ->whereNull('owner_user_id')
             ->count();
 
-        // Total users
-        $totalUsers = User::count();
+        // Total users：同上，订阅记录不算用户，账号删掉后这里立刻减少
+        $totalUsers = User::whereNull('owner_user_id')->count();
 
         // Active users (users with valid subscription)
-        $activeUsers = User::where(function ($query) {
-            $query->where('expired_at', '>=', time())
-                ->orWhere('expired_at', NULL);
-        })->count();
+        $activeUsers = User::whereNull('owner_user_id')
+            ->where(function ($query) {
+                $query->where('expired_at', '>=', time())
+                    ->orWhere('expired_at', NULL);
+            })->count();
 
         // Previous month income for growth calculation
         $twoMonthsAgoIncome = Order::where('created_at', '>=', $twoMonthsAgoStart)
@@ -354,6 +359,7 @@ class StatController extends Controller
         // Previous month users for growth calculation
         $lastMonthNewUsers = User::where('created_at', '>=', $lastMonthStart)
             ->where('created_at', '<', $currentMonthStart)
+            ->whereNull('owner_user_id')
             ->count();
 
         // Calculate growth rates

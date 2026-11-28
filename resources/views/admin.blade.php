@@ -523,12 +523,77 @@
         box.style.backgroundColor = '';
         delete box.dataset.vpscsColor;
       }
+      // 流量显示成后台那种 1.38 MB / 1 GB，避免 1073741824 这种原始字节。
+      function fmtBytes(bytes) {
+        var value = Number(bytes || 0);
+        if (!(value > 0)) return '0 B';
+        var units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+        var index = 0;
+        while (value >= 1024 && index < units.length - 1) { value = value / 1024; index += 1; }
+        var text = index === 0 ? String(Math.round(value)) : value.toFixed(2).replace(/\.?0+$/, '');
+        return text + ' ' + units[index];
+      }
+      function setNodeText(node, text) {
+        if (node && node.textContent !== text) node.textContent = text;
+      }
+      // 已用流量 / 总流量也跟着当前订阅走，不然「订阅」写 A、流量却是账号本身的。
+      function paintTraffic(row, profile, usedIndex, totalIndex) {
+        var usedCell = usedIndex >= 0 ? row.children[usedIndex] : null;
+        var totalCell = totalIndex >= 0 ? row.children[totalIndex] : null;
+        var usedNode = usedCell && usedCell.querySelector('span');
+        var percentNode = usedCell && usedCell.querySelectorAll('span')[1];
+        var bar = usedCell && usedCell.querySelector('[style*="width"]');
+        var totalNode = totalCell && totalCell.querySelector('div');
+
+        if (!profile) {
+          if (usedCell && usedCell.dataset.vpscsNativeUsed !== undefined) {
+            setNodeText(usedNode, usedCell.dataset.vpscsNativeUsed);
+            setNodeText(percentNode, usedCell.dataset.vpscsNativePercent);
+            if (bar && usedCell.dataset.vpscsNativeBar !== undefined) bar.style.width = usedCell.dataset.vpscsNativeBar;
+          }
+          if (totalCell && totalCell.dataset.vpscsNativeTotal !== undefined) setNodeText(totalNode, totalCell.dataset.vpscsNativeTotal);
+          return;
+        }
+
+        var used = Number(profile.u || 0) + Number(profile.d || 0);
+        var total = Number(profile.transfer_enable || 0);
+        var percent = total > 0 ? Math.min(100, (used / total) * 100) : 0;
+        if (usedCell) {
+          if (usedCell.dataset.vpscsNativeUsed === undefined && usedNode) {
+            usedCell.dataset.vpscsNativeUsed = usedNode.textContent;
+            usedCell.dataset.vpscsNativePercent = percentNode ? percentNode.textContent : '';
+            usedCell.dataset.vpscsNativeBar = bar ? bar.style.width : '';
+          }
+          setNodeText(usedNode, fmtBytes(used));
+          setNodeText(percentNode, percent.toFixed(1) + '%');
+          if (bar) {
+            var width = percent + '%';
+            if (bar.style.width !== width) bar.style.width = width;
+          }
+        }
+        if (totalCell && totalNode) {
+          if (totalCell.dataset.vpscsNativeTotal === undefined) totalCell.dataset.vpscsNativeTotal = totalNode.textContent;
+          setNodeText(totalNode, fmtBytes(total));
+        }
+      }
+      // 邮箱前面挂一个「N 条」小标签：不用点开编辑就知道这个账号有几条订阅。
+      function paintSubCount(cell, count) {
+        var holder = cell && cell.querySelector('div');
+        if (!holder) return;
+        var text = count + ' 条';
+        if (holder.dataset.vpscsCount !== text) holder.dataset.vpscsCount = text;
+        var tip = '该账号名下共 ' + count + ' 条有效订阅';
+        if (holder.title !== tip) holder.title = tip;
+      }
       function paintRowProfiles() {
         var table = userTableElement();
         if (!table) return;
         var heads = Array.prototype.map.call(table.querySelectorAll('thead th'), function (th) { return th.textContent.replace(/\s+/g, ''); });
         var nameIndex = heads.indexOf('订阅');
         var expiryIndex = heads.findIndex(function (head) { return /到期时间|接近时间|过期时间/.test(head); });
+        var usedIndex = heads.findIndex(function (head) { return /已用流量/.test(head); });
+        var totalIndex = heads.findIndex(function (head) { return /总流量|可用流量/.test(head); });
+        var emailIndex = heads.indexOf('邮箱');
         if (nameIndex < 0 && expiryIndex < 0) return;
         Array.prototype.forEach.call(table.querySelectorAll('tbody tr'), function (row) {
           var email = rowEmail(row);
@@ -536,6 +601,12 @@
           var profile = currentProfileFor(user);
           var nameCell = nameIndex >= 0 ? row.children[nameIndex] : null;
           var expiryCell = expiryIndex >= 0 ? row.children[expiryIndex] : null;
+          var emailCell = emailIndex >= 0 ? row.children[emailIndex] : null;
+          paintTraffic(row, profile, usedIndex, totalIndex);
+          if (user && emailCell) {
+            var count = Array.isArray(user.subscription_profiles) ? user.subscription_profiles.length : 0;
+            paintSubCount(emailCell, count);
+          }
           if (!profile) {
             restoreCellText(nameCell);
             restoreCellText(expiryCell);
@@ -544,7 +615,7 @@
           }
           var name = profile.name || (profile.plan && profile.plan.name) || '订阅';
           var day = profileDay(profile);
-          var hint = '当前显示订阅' + profileNo(profile, 0) + '（ID ' + profile.id + '）的' ;
+          var hint = '当前显示订阅' + profileNo(profile, 0) + '（ID ' + profile.id + '）的';
           paintCellText(nameCell, name, hint + '套餐');
           paintCellText(expiryCell, day, hint + '到期时间');
           if (profile.expired_at) restoreExpiryColor(expiryCell);
@@ -1103,6 +1174,21 @@
     .vpscs-sub-url { width:100%; min-height:34px; }
     .vpscs-sub-status { min-height:16px; font-size:12px; color:var(--el-text-color-secondary, #8a93a6); }
     .vpscs-sub-status.is-ok { color:#12b886; }
+    /* 邮箱前的「N 条」订阅标签：用 ::before 画，不往 React 的节点里插元素 */
+    #root table td [data-vpscs-count]::before {
+      content: attr(data-vpscs-count);
+      margin-right: 2px;
+      padding: 1px 7px;
+      font-size: 10.5px;
+      font-weight: 700;
+      line-height: 16px;
+      color: hsl(var(--muted-foreground));
+      background: hsl(var(--secondary));
+      border: 1px solid hsl(var(--border));
+      border-radius: 999px;
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+    }
     .vpscs-sub-status.is-error { color:#f0596b; }
     .vpscs-confirm-mask { position:fixed; inset:0; z-index:3000; display:flex; align-items:center; justify-content:center; background:rgba(6,10,18,.55); }
     .vpscs-confirm { width:320px; padding:18px; display:grid; gap:14px; border:1px solid var(--el-border-color); border-radius:12px; background:var(--el-bg-color-overlay, #131c2c); box-shadow:0 18px 40px rgba(0,0,0,.35); }
